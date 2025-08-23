@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Tutorial 1.3: Medindo desempenho de rede com Iperf e construindo aplicações (v1.1)</title>
+<meta name="generator" content="http://txt2tags.org">
+<link rel="stylesheet" href="tutorial.css">
+<style>
+body{background-color:#fff;color:#000;}
+hr{background-color:#000;border:0;color:#000;}
+hr.heavy{height:5px;}
+hr.light{height:1px;}
+img{border:0;display:block;}
+img.right{margin:0 0 0 auto;}
+img.center{border:0;margin:0 auto;}
+table th,table td{padding:4px;}
+.center,header{text-align:center;}
+table.center {margin-left:auto; margin-right:auto;}
+.right{text-align:right;}
+.left{text-align:left;}
+.tableborder,.tableborder td,.tableborder th{border:1px solid #000;}
+.underline{text-decoration:underline;}
+</style>
+</head>
+<body>
+<header>
+<hgroup>
+<h1>Tutorial 1.3: Medindo desempenho de rede com Iperf e construindo aplicações (v1.1)</h1>
+</hgroup>
+</header>
+<article>
+
+<nav>
+<div class="body" id="body">
+
+  <ol>
+  <li><a href="#toc1">Objetivo</a>
+  </li>
+  <li><a href="#toc2">Compilando o Iperf</a>
+    <ul>
+    <li><a href="#toc3">2.1. Adicionando Iperf no target com Buildroot</a>
+    </li>
+    <li><a href="#toc4">2.2. Compilando no Host</a>
+    </li>
+    </ul>
+  </li>
+  <li><a href="#toc5">Executando testes</a>
+    <ul>
+    <li><a href="#toc6">3.1. Bandwidth</a>
+    </li>
+    <li><a href="#toc7">3.2. Jitter</a>
+    </li>
+    <li><a href="#toc8">3.3. Comunicação</a>
+    </li>
+    <li><a href="#toc9">3.4. Primeira aplicação</a>
+    </li>
+    </ul>
+  </li>
+  </ol>
+
+</div>
+</nav>
+<div class="body" id="body">
+
+<section id="toc1">
+<h1>1. Objetivo</h1>
+
+<p>
+O objetivo deste tutorial é realizar medições de desempenho de rede/sistema com a ferramenta Iperf. O Iperf é uma ferramenta capaz de determinar a largura máxima de banda em redes IP, que permite
+diversas parametrizações relacionados a tempo, buffers e protocolos (TCP e UDP). Iperf é amplamente usado para determinar a largura de banda entre dois hosts ou mesmo avaliar o desempenho de 
+roteamento de um host específico.
+</p>
+
+</section>
+<section id="toc2">
+<h1>2. Compilando o Iperf</h1>
+
+<p>
+O Iperf opera como um cliente/servidor. Assim, precisamos que o Iperf seja executando tanto no host como na máquina alvo (target). É importante que as versões rodando nas duas máquinas sejam as mesmas, o Iperf
+não mantém compatibilidade com versões anteriores. 
+</p>
+
+<section id="toc3">
+<h2>2.1. Adicionando Iperf no target com Buildroot</h2>
+
+<p>
+Primeiramente, adicione suporte ao compilador C++ a toolchain, através o menuconfig do Buildroot.
+</p>
+
+<pre>
+Toolchain  ---&gt;
+	 [*] Enable C++ support
+</pre>
+
+<p>
+Agora selecione o Iperf, conforme abaixo. É importante que seja selecionado o Iperf e não Iperf3. 
+</p>
+
+<pre>
+Target packages  ---&gt;
+	 Networking applications  ---&gt;
+		 [*] iperf
+</pre>
+
+<p>
+A modificação na toolchain irá exigir a recompilação de toda a distribuição.
+</p>
+
+<pre>
+$ make clean
+</pre>
+
+<p>
+Verifique as configurações do kernel relacionadas a device drivers. Com a execução do último comando, torna-se necessário incluir novamente o driver de rede Intel na configuração. Dessa forma, execute:
+</p>
+
+<pre>
+$ make linux-menuconfig
+</pre>
+
+<p>
+Habilite o driver Ethernet e1000:
+</p>
+
+<pre>
+Device Drivers  ---&gt; 
+	[*] Network device support  ---&gt;    
+		[*]   Ethernet driver support  ---&gt; 
+		&lt;*&gt;     Intel(R) PRO/1000 Gigabit Ethernet support 
+</pre>
+
+<p>
+Salve a configuração e recompile a distribuição:
+</p>
+
+<pre>
+$ make
+</pre>
+
+</section>
+<section id="toc4">
+<h2>2.2. Compilando no Host</h2>
+
+<p>
+Iremos compilar a mesma versão utilizada pelo Buidlroot. Para tanto, crie um diretório chamado <em>iperf/</em>.
+</p>
+
+<pre>
+$ mkdir iperf
+</pre>
+
+<p>
+Copie o tarball do iperf de <em>dl</em> para o diretório criado.
+</p>
+
+<pre>
+$ cp dl/iperf/iperf-2.1.8.tar.gz iperf
+</pre>
+
+<p>
+Descompacte o tarball.
+</p>
+
+<pre>
+cd iperf
+tar -zxvf iperf-2.1.8.tar.gz
+</pre>
+
+<p>
+Configure e compile o iperf:
+</p>
+
+<pre>
+$ ./configure
+$ make
+</pre>
+
+</section>
+</section>
+<section id="toc5">
+<h1>3. Executando testes</h1>
+
+<p>
+Iremos avaliar largura de banda (bandwidth) e atraso (jitter) entre o target e o host. Em ambos os casos, execute o servidor no target (QEMU) e o cliente no host, conforme a seguir.
+</p>
+
+<section id="toc6">
+<h2>3.1. Bandwidth</h2>
+
+<p>
+No target, execute o comando <em>iperf -s</em>. Isso fará o iperf aguardar conexões TCP na porta 5001. 
+</p>
+
+<pre>
+$ iperf -s
+------------------------------------------------------------
+Server listening on TCP port 5001
+TCP window size: 85.3 KByte (default)
+------------------------------------------------------------
+[  4] local 192.168.1.10 port 5001 connected with 192.168.15.232 port 56558
+[ ID] Interval       Transfer     Bandwidth
+[  4]  0.0-60.0 sec  3.31 GBytes   474 Mbits/sec
+
+</pre>
+
+<p>
+No host, execute o iperf compilado anteriormente. 
+</p>
+
+<pre>
+$ ./src/iperf -c &lt;ip_do_target&gt; -i 1 -t 5
+------------------------------------------------------------
+Client connecting to 192.168.1.10, TCP port 5001
+TCP window size: 85.0 KByte (default)
+------------------------------------------------------------
+[  3] local 192.168.15.232 port 56604 connected with 192.168.1.10 port 5001
+[ ID] Interval       Transfer     Bandwidth
+[  3]  0.0- 1.0 sec  56.2 MBytes   472 Mbits/sec
+[  3]  1.0- 2.0 sec  56.2 MBytes   472 Mbits/sec
+[  3]  2.0- 3.0 sec  62.5 MBytes   524 Mbits/sec
+[  3]  3.0- 4.0 sec  60.6 MBytes   509 Mbits/sec
+[  3]  4.0- 5.0 sec  55.6 MBytes   467 Mbits/sec
+[  3]  0.0- 5.0 sec   291 MBytes   488 Mbits/sec
+
+</pre>
+
+<p>
+A largura de banda resultante é mostrada no lado do servidor, no caso acima, foi de 474 Mbits/sec.
+</p>
+
+</section>
+<section id="toc7">
+<h2>3.2. Jitter</h2>
+
+<p>
+O jitter é a variação do atraso da rede entre dois hosts. Novamente execute o servidor no target, contudo, adicione a opção <em>-u</em> (UDP).
+</p>
+
+<pre>
+$ iperf -s -u
+------------------------------------------------------------
+Server listening on UDP port 5001
+Receiving 1470 byte datagrams
+UDP buffer size:  160 KByte (default)
+------------------------------------------------------------
+[  3] local 192.168.1.10 port 5001 connected with 192.168.15.232 port 39348
+[ ID] Interval       Transfer     Bandwidth        Jitter   Lost/Total Datagrams
+[  3]  0.0- 5.0 sec   642 KBytes  1.05 Mbits/sec   0.040 ms    0/  447 (0%)
+</pre>
+
+<p>
+No host, também adicione a opção <em>-u</em> ao comando.
+</p>
+
+<pre>
+./src/iperf -c 192.168.1.10 -i 1 -t 5 -u
+------------------------------------------------------------
+Client connecting to 192.168.1.10, UDP port 5001
+Sending 1470 byte datagrams, IPG target: 11215.21 us (kalman adjust)
+UDP buffer size:  208 KByte (default)
+------------------------------------------------------------
+[  3] local 192.168.15.232 port 39348 connected with 192.168.1.10 port 5001
+[ ID] Interval       Transfer     Bandwidth
+[  3]  0.0- 1.0 sec   131 KBytes  1.07 Mbits/sec
+[  3]  1.0- 2.0 sec   128 KBytes  1.05 Mbits/sec
+[  3]  2.0- 3.0 sec   128 KBytes  1.05 Mbits/sec
+[  3]  3.0- 4.0 sec   128 KBytes  1.05 Mbits/sec
+[  3]  4.0- 5.0 sec   128 KBytes  1.05 Mbits/sec
+[  3]  0.0- 5.0 sec   642 KBytes  1.05 Mbits/sec
+[  3] Sent 447 datagrams
+[  3] Server Report:
+[  3]  0.0- 5.0 sec   642 KBytes  1.05 Mbits/sec   0.039 ms    0/  447 (0%)
+</pre>
+
+<p>
+O teste de jitter utiliza protocolo UDP. O resultado é mostrado na coluna <em>Jitter</em> do lado servidor. 
+</p>
+
+</section>
+<section id="toc8">
+<h2>3.3. Comunicação</h2>
+
+<p>
+No target, usar o programa <em>nc</em> para escutar o tráfego TCP na porta 9000.
+</p>
+
+<pre>
+nc -l -p 8000
+</pre>
+
+<p>
+No host, use o nc para enviar os caracteres digitados no terminal.
+</p>
+
+<pre>
+nc 192.168.1.10 8000
+</pre>
+
+<p>
+Será necessário instalar o pacote <em>netcat</em> na distribuição:
+</p>
+
+<pre>
+Target packages  ---&gt;
+	[*]   Show packages that are also provided by busybox
+	Networking applications  ---&gt;
+		[*] netcat 
+</pre>
+
+</section>
+<section id="toc9">
+<h2>3.4. Primeira aplicação</h2>
+
+<p>
+Permitir que o compilador cruzado seja disponibilizado na variável de ambiente PATH:
+</p>
+
+<pre>
+$ export PATH=$PATH:COLOQUE O CAMINHO ATÈ A PASTA DO BUILDROOT/output/host/bin
+</pre>
+
+<p>
+Para que o compilador cruzado seja acessível por qualquer shell aberto (e não apenas pelo shell onde foi executado o comando <em>export</em>) basta adicionar esse comando no seu arquivo <em>.bashrc</em>. O próximo passo consiste em criar um programa exemplo (no host):
+</p>
+
+<pre>
+#include &lt;stdio.h&gt;
+
+int main(void){
+	printf("Hello World!\n");
+
+	return 0;
+}
+</pre>
+
+<p>
+Você pode verificar o funcionamento do programa usando o compilador nativo:
+</p>
+
+<pre>
+$ gcc hello.c -O2 -o hello
+$ ./hello
+</pre>
+
+<p>
+O compilador cruzado será utilizado para gerar um binário contendo sua aplicação e bibliotecas necessárias para a execução dessa no target. O <em>buildroot</em> criou um compilador cruzado completo, e esse pode ser utilizado da mesma forma que o compilador nativo:
+</p>
+
+<pre>
+$ i686-linux-gcc hello.c -O2 -o hello
+</pre>
+
+<p>
+Para que o programa possa ser executado no target, é necessário copiar o arquivo para o local que será usado para construir o sistema de arquivos root em um diretório acessível (como por exemplo <em>buildroot/output/target/usr/bin/</em>). Você pode editar ou adicionar scripts no target para que um programa seja executado durante a inicialização do linux. O script abaixo (colocado no target) pode ser usado como exemplo (/etc/init.d/S50hello). Não esqueça de dar permissão de execução para esse script!
+</p>
+
+<pre>
+#!/bin/sh
+case "$1" in
+	start)
+		/usr/bin/hello
+		;;
+	stop)
+		exit 1
+		;;
+	*)
+		exit 1
+		;;
+esac
+
+exit 0
+</pre>
+
+<p>
+Execute o comando <em>make</em> para recriar o sistema de arquivos root contendo suas modificações.
+</p>
+</section>
+</section>
+</div>
+
+<!-- html code generated by txt2tags 3.4 (http://txt2tags.org) -->
+<!-- cmdline: txt2tags 1.1 - buildroot.t2t 1.2 - qemu-network.t2t 1.3 - iperf.t2t 2.1 - kernel_tutorial.t2t 2.2 - system_call.t2t 2.3 - driver_hello_world.t2t 2.4 - iosched.t2t 3.1 - ftrace.t2t 3.2 - ftrace2.t2t 3.3 - trace-cmd_kernelshark.t2t 3.4 - sched_low_idle_not_used.t2t 4.1 - memory_tools.t2t 4.2 - process_segments.t2t -->
+</article></body></html>

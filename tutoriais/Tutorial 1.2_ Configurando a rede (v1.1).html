@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Tutorial 1.2: Configurando a rede (v1.1)</title>
+<meta name="generator" content="http://txt2tags.org">
+<link rel="stylesheet" href="tutorial.css">
+<style>
+body{background-color:#fff;color:#000;}
+hr{background-color:#000;border:0;color:#000;}
+hr.heavy{height:5px;}
+hr.light{height:1px;}
+img{border:0;display:block;}
+img.right{margin:0 0 0 auto;}
+img.center{border:0;margin:0 auto;}
+table th,table td{padding:4px;}
+.center,header{text-align:center;}
+table.center {margin-left:auto; margin-right:auto;}
+.right{text-align:right;}
+.left{text-align:left;}
+.tableborder,.tableborder td,.tableborder th{border:1px solid #000;}
+.underline{text-decoration:underline;}
+</style>
+</head>
+<body>
+<header>
+<hgroup>
+<h1>Tutorial 1.2: Configurando a rede (v1.1)</h1>
+</hgroup>
+</header>
+<article>
+
+<nav>
+<div class="body" id="body">
+
+  <ol>
+  <li><a href="#toc1">Objetivo</a>
+  </li>
+  <li><a href="#toc2">Configurando o Host</a>
+  </li>
+  <li><a href="#toc3">Emulando com QEMU</a>
+    <ul>
+    <li><a href="#toc4">3.1. Testando com PING</a>
+    </li>
+    </ul>
+  </li>
+  <li><a href="#toc5">Tornando as configurações no GUEST permanentes</a>
+  </li>
+  <li><a href="#toc6">Desafio</a>
+  </li>
+  </ol>
+
+</div>
+</nav>
+<div class="body" id="body">
+
+<section id="toc1">
+<h1>1. Objetivo</h1>
+
+<p>
+Este tutorial tem o objetivo de permitir a comunicação, através de rede emulada, entre o sistema operacional guest (emulado pelo QEMU) e a máquina host. Utilize a distribuição customizada no <em>Tutorial 1: Buildroot e QEMU</em>. Você pode clonar o repositório do último tutorial do <em>Bitbucket</em> ou <em>Github</em> ou usar a cópia local (se essa existir). Para clonar o repositório (supondo que seu usuário seja <em>user123</em> e que o repositório seja <em>buildroot</em>):
+</p>
+
+<pre>
+$ git clone https://bitbucket.org/user123/buildroot
+</pre>
+
+</section>
+<section id="toc2">
+<h1>2. Configurando o Host</h1>
+
+<p>
+No diretório buildroot/, criaremos um diretório chamado <em>custom-scripts</em>, com o objetivo de manter scripts de configuração personalizados:
+</p>
+
+<pre>
+$ mkdir custom-scripts
+</pre>
+
+<p>
+Crie um arquivo denominado <em>qemu-ifup</em> com o conteúdo abaixo no diretório <em>custom-scripts</em>:
+</p>
+
+<pre>
+#!/bin/sh
+set -x
+
+switch=br0
+
+if [ -n "$1" ];then
+        ip tuntap add $1 mode tap user `whoami`		#create tap network interface
+        ip link set $1 up				#bring interface tap up
+        sleep 0.5s					#wait the interface come up.
+        sysctl -w net.ipv4.ip_forward=1                 # allow forwarding of IPv4
+	route add -host 192.168.1.10 dev $1 		# add route to the client
+        exit 0
+else
+        echo "Error: no interface specified"
+        exit 1
+fi
+</pre>
+
+<p>
+De permissão de execução no arquivo criado:
+</p>
+
+<pre>
+$ chmod +x custom-scripts/qemu-ifup
+</pre>
+
+</section>
+<section id="toc3">
+<h1>3. Emulando com QEMU</h1>
+
+<p>
+Execute a emulação do guest com o novo comando do QEMU, conforme abaixo:
+</p>
+
+<pre>
+sudo qemu-system-i386 --device e1000,netdev=eth0,mac=aa:bb:cc:dd:ee:ff \
+	--netdev tap,id=eth0,script=custom-scripts/qemu-ifup \
+	--kernel output/images/bzImage \
+	--hda output/images/rootfs.ext2 \
+	--nographic \
+	--append "console=ttyS0 root=/dev/sda" 
+
+</pre>
+
+<p>
+<strong>Nota:</strong> Observe que agora o QEMU deverá ser executado com permissões de root, para que o script <em>qemu-ifup</em> possa ser executado. Além disso, o comando acima considera que o diretório corrente seja <em>MATRICULA/</em>. Caso execute o QEMU de qualquer outro diretório será necessário
+ajustar os parametros <em>kernel</em>, <em>hda</em> e <em>netdev</em> para refletir corretamente o caminho até os arquivos desejados.
+</p>
+
+<section id="toc4">
+<h2>3.1. Testando com PING</h2>
+
+<p>
+Primeiramente, será necessário configurar o roteamento de rede no guest, para que este considere o host como seu roteador de primeiro salto. 
+</p>
+<p>
+Configure um IP para a interface de rede do guest:
+</p>
+
+<pre>
+$ ifconfig eth0 192.168.1.10 up
+</pre>
+
+<p>
+Agora, adicione uma rota padrão para o IP do host. 
+</p>
+
+<pre>
+$ route add -host &lt;IP-DO-HOST&gt; dev eth0
+$ route add default gw &lt;IP-DO-HOST&gt;
+</pre>
+
+<p>
+<strong>Nota</strong>: Use o comando ifconfig no host para obter o IPv4. 
+</p>
+<p>
+O protocolo ICMP, através das mensagens <em>ECHO REQUEST</em> e <em>ECHO REPLY</em> é amplamente utilizado para testar a conectividade entre duas máquina em um rede. No Linux, tal protocolo é implementado pelo comando <em>ping</em>. Iremos utilizar o comando <em>ping</em> para verificar se host e guest podem se comunicar, ou seja, se nossa configuração de fato funcionou. 
+</p>
+<p>
+No guest, tente pingar o IP do host:
+</p>
+
+<pre>
+ping &lt;ip-do-host&gt;
+</pre>
+
+<p>
+No host, tente pingar o IP do guest:
+</p>
+
+<pre>
+ping 192.168.1.10
+PING 192.168.1.10 (192.168.1.10) 56(84) bytes of data.
+64 bytes from 192.168.1.10: icmp_seq=1 ttl=64 time=2.63 ms
+64 bytes from 192.168.1.10: icmp_seq=2 ttl=64 time=0.530 ms
+...
+</pre>
+
+<p>
+O ping deve funcionar em ambos os casos. 
+</p>
+
+</section>
+</section>
+<section id="toc5">
+<h1>4. Tornando as configurações no GUEST permanentes</h1>
+
+<p>
+Observe que foi necessário aplicar configurações manualmente no guest para que a comunicação funcionasse. Experimente reiniciar o guest (commando <em>reboot</em>), veja que a configuração da rede desapareceu.
+Contudo, é necessário tornar estas configurações permanentes. Para isso, iremos configurar o Buildroot para gerar a distribuição com as configurações de rede desejada. 
+</p>
+<p>
+O Buildroot permite a execução de scripts customizados pelo usuários em diferentes momentos da compilação. Neste caso, desejamos executar um script (pre-build.sh) para copiar o script de configuração da rede (S41network-config) antes da geração do sistema de arquivos (rootfs). 
+</p>
+<p>
+Crie um arquivo denominado <em>S41network-config</em> no diretório <em>custom-scripts</em> (criado anteriormente), com o conteúdo abaixo:
+</p>
+
+<pre>
+#!/bin/sh
+#
+# Configuring host communication.
+#
+
+case "$1" in
+  start)
+	printf "Configuring host communication."
+	
+	/sbin/ifconfig eth0 192.168.1.10 up
+	/sbin/route add -host &lt;IP-DO-HOST&gt; dev eth0
+	/sbin/route add default gw &lt;IP-DO-HOST&gt;
+	[ $? = 0 ] &amp;&amp; echo "OK" || echo "FAIL"
+	;;
+  stop)
+	printf "Shutdown host communication. "
+	/sbin/route del default
+	/sbin/ifdown -a
+	[ $? = 0 ] &amp;&amp; echo "OK" || echo "FAIL"
+	;;
+  restart|reload)
+	"$0" stop
+	"$0" start
+	;;
+  *)
+	echo "Usage: $0 {start|stop|restart}"
+	exit 1
+esac
+
+exit $?
+</pre>
+
+<p>
+<strong>Nota 1:</strong> Não se esqueça de substituir &lt;IP-DO-HOST&gt; pelo IP real do host.
+</p>
+<p>
+<strong>Nota 2:</strong> O script acima será copiado para o diretório <em>/etc/init.d</em> (no sistema de arquivos do guest) e será executado durante a inicialização do sistema. 
+</p>
+<p>
+No mesmo diretório, crie um segundo arquivo denominado <em>pre-build.sh</em>, com o conteúdo abaixo:
+</p>
+
+<pre>
+#!/bin/sh
+
+cp $BASE_DIR/../custom-scripts/S41network-config $BASE_DIR/target/etc/init.d
+chmod +x $BASE_DIR/target/etc/init.d/S41network-config
+</pre>
+
+<p>
+De permissão de execução para o script <em>pre-build.sh</em>.
+</p>
+
+<pre>
+chmod +x custom-scripts/pre-build.sh
+</pre>
+
+<p>
+Agora, configure o Buildroot para executar o script <em>pre-build.sh</em> antes da geração da imagem do rootfs.
+</p>
+
+<pre>
+$ make menuconfig
+</pre>
+
+<pre>
+System configuration  ---&gt;
+	(custom-scripts/pre-build.sh) Custom scripts to run before creating filesystem images
+</pre>
+
+<p>
+Salve a configuração e recompile a distribuição para aplicar as modificações.
+</p>
+
+<pre>
+make
+</pre>
+
+<p>
+Execute a emulação do guest:
+</p>
+
+<pre>
+sudo qemu-system-i386 --device e1000,netdev=eth0,mac=aa:bb:cc:dd:ee:ff \
+	--netdev tap,id=eth0,script=custom-scripts/qemu-ifup \
+	--kernel output/images/bzImage \
+	--hda output/images/rootfs.ext2 --nographic \
+	--append "console=ttyS0 root=/dev/sda" 
+
+</pre>
+
+<p>
+<strong>Nota</strong>: Não se esqueça de comitar o novo diretório <em>custom-scripts</em> e o arquivo <em>.config</em>. Se o <em>git</em> não estiver configurado localmente, execute os comandos dentro do repositório (subtitua por seu email e nome de usuário):
+</p>
+
+<pre>
+$ git config user.email "user123@acad.pucrs.br"
+$ git config user.name "user123"
+</pre>
+
+<p>
+Edite o arquivo <em>.gitignore</em> e remova a linha que contém <em>.config</em>. Realize um <em>commit</em> e um <em>push</em> para sincronizar os repositórios.
+</p>
+
+<pre>
+$ git commit -a -m "Tutorial 1.2 - added custom scripts"
+$ git push
+</pre>
+
+</section>
+<section id="toc6">
+<h1>5. Desafio</h1>
+
+<p>
+Adicione um servidor <em>ssh</em> (pacote <em>dropbear</em>) a sua distribuição. Com o suporte de rede configurado nesse tutorial, verifique se você consegue acessar a máquina guest remotamente.
+</p>
+</section>
+</div>
+
+<!-- html code generated by txt2tags 3.4 (http://txt2tags.org) -->
+<!-- cmdline: txt2tags 1.1 - buildroot.t2t 1.2 - qemu-network.t2t 1.3 - iperf.t2t 2.1 - kernel_tutorial.t2t 2.2 - system_call.t2t 2.3 - driver_hello_world.t2t 2.4 - iosched.t2t 3.1 - ftrace.t2t 3.2 - ftrace2.t2t 3.3 - trace-cmd_kernelshark.t2t 3.4 - sched_low_idle_not_used.t2t 4.1 - memory_tools.t2t 4.2 - process_segments.t2t -->
+</article></body></html>

@@ -1,0 +1,275 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN">
+<!-- saved from url=(0094)https://moodle.pucrs.br/pluginfile.php/4158782/mod_resource/content/2/1.1%20-%20buildroot.html -->
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta name="generator" content="http://txt2tags.org">
+
+<link rel="stylesheet" type="text/css" href="./Tutorial 1.1_ Buildroot e QEMU (v1.2)_files/tutorial.css">
+<title>Tutorial 1.1: Buildroot e QEMU (v1.2)</title>
+</head><body bgcolor="white" text="black">
+<center>
+<h1>Tutorial 1.1: Buildroot e QEMU (v1.2)</h1>
+</center>
+
+<p></p>
+<hr noshade="" size="1">
+<p></p>
+
+  <ol>
+  <li><a href="https://moodle.pucrs.br/pluginfile.php/4158782/mod_resource/content/2/1.1%20-%20buildroot.html#toc1">Introdução</a>
+  </li><li><a href="https://moodle.pucrs.br/pluginfile.php/4158782/mod_resource/content/2/1.1%20-%20buildroot.html#toc2">Obtendo o Buildroot</a>
+    <ul>
+    <li><a href="https://moodle.pucrs.br/pluginfile.php/4158782/mod_resource/content/2/1.1%20-%20buildroot.html#toc3">2.1. Usando versionamento com GIT</a>
+      <ul>
+      <li><a href="https://moodle.pucrs.br/pluginfile.php/4158782/mod_resource/content/2/1.1%20-%20buildroot.html#toc4">2.1.1. Adicionando o diretório dl/ no repositório</a>
+      </li></ul>
+    </li></ul>
+  </li><li><a href="https://moodle.pucrs.br/pluginfile.php/4158782/mod_resource/content/2/1.1%20-%20buildroot.html#toc5">Preparando o Buildroot para compilar para um alvo específico</a>
+    <ul>
+    <li><a href="https://moodle.pucrs.br/pluginfile.php/4158782/mod_resource/content/2/1.1%20-%20buildroot.html#toc6">3.1. Compilação e Outputs</a>
+    </li></ul>
+  </li><li><a href="https://moodle.pucrs.br/pluginfile.php/4158782/mod_resource/content/2/1.1%20-%20buildroot.html#toc7">Emulando com QEMU</a>
+  </li></ol>
+
+<p></p>
+<hr noshade="" size="1">
+<p></p>
+
+<a name="toc1"></a>
+<h1>1. Introdução</h1>
+
+<p>
+Este tutorial contêm o processo básico para construir uma distribuição Linux para emulação com QEMU, baseado
+no Buildroot. O Buildroot é um conjunto de Makefiles e patches que tem como objetivo facilitar a geração de distribuições
+para sistemas Linux. 
+</p>
+<p>
+Neste tutorial serão efetuados os seguintes passos:
+</p>
+
+<ol>
+<li>Obtenção do Buildroot.
+ <ol>
+ <li>Versionamento dos fontes com GIT.
+ </li></ol>
+</li><li>Geração da distribuição para a plataforma alvo. 
+</li><li>Execução com QEMU.
+</li></ol>
+
+<a name="toc2"></a>
+<h1>2. Obtendo o Buildroot</h1>
+
+<p>
+Primeiramente, criaremos um diretório de trabalho denominado linuxdistro em seu diretório Home. De agora em diante, todos os passos serão executados neste diretório. 
+</p>
+
+<pre>  $ mkdir linuxdistro
+  $ cd linuxdistro
+</pre>
+
+<p>
+Faça download da versão 2022.02 do Buildroot:
+</p>
+
+<pre>  $ wget --no-check-certificate https://buildroot.org/downloads/buildroot-2022.02.tar.gz
+</pre>
+
+<p>
+Maiores informações (assim como outras versões) podem ser encontradas no site oficial:
+</p>
+
+<pre>  https://buildroot.uclibc.org/download.html
+</pre>
+
+<p>
+Descompacte o arquivo baixado para o diretório linuxdistro/.
+</p>
+
+<pre>  $ tar -zxvf buildroot-2022.02.tar.gz
+</pre>
+
+<p>
+Renomeie o diretório criado para buildroot/.
+</p>
+
+<pre>  $ mv buildroot-2022.02/ buildroot/
+</pre>
+
+<a name="toc3"></a>
+<h2>2.1. Usando versionamento com GIT</h2>
+
+<p>
+Este passo é opcional, ou seja, não é necessário versionar os fontes para executar o Linux no QEMU. Contudo, é uma boa prática manter o controle dos fontes através de alguma ferramenta de versionamento. Assim, será possível saber todas as modificações ocorridas nos fontes e desfazê-las quando necessário. Em nossas aulas, usaremos o GIT como ferramenta de controle de versões.
+</p>
+<p>
+No diretório buildroot/, inicialize o diretório que será versionado:
+</p>
+
+<pre>  $ git init
+</pre>
+
+<p>
+Agora, adicione todos os fontes e subdiretórios do diretório que será versionado.
+</p>
+
+<pre>  $ git add .
+</pre>
+
+<p>
+Finalmente, comite uma versão inicial.
+</p>
+
+<pre>  $ git commit -m "Tutorial 1.1 - First commit"
+</pre>
+
+<p>
+Neste último passo o comando <i>-m</i> e a mensagem de commit podem ser ignorados. Nesse caso, um editor será aberto para que seja digitada a mensagem de commit (motivo/alteração que gerou o commit). Escreva a mensagem, salve (CTRL+O, ENTER) e saia (CTRL+X).
+</p>
+<p>
+Os comits são salvos localmente. Ainda precisamos colocar os fontes em algum repositório na núvem para garantir que tenhamos um sistema de controle de fontes completo (com backup na núvem e que permita desenvolvimento distribuído). Você pode criar uma conta em algum sistema de versionamento na núvem como Github ou Bitbucket. 
+</p>
+<p>
+Com o repositório remoto configurado, devemos fazer upload dos fontes para ele. Assim, garantimos um backup remoto de todo o trabalho realizado na árvore de fontes, e ainda, permitindo compartilhamento 
+dos fontes quando desejável. Para isso, adicione o endereço do repositório remoto:
+</p>
+
+<pre>  $ git remote add &lt;nome_do_repositório&gt; &lt;url_do_repositório&gt;
+</pre>
+
+<p>
+Agora, faça <i>push</i> (envio) dos fontes para o repositório na núvem.
+</p>
+
+<pre>  $ git push &lt;nome_do_repositório&gt; master:master
+</pre>
+
+<p>
+No comando acima, o branch master será enviado para o branch master do repositório dado em &lt;nome_do_repositório&gt;.
+</p>
+
+<a name="toc4"></a>
+<h3>2.1.1. Adicionando o diretório dl/ no repositório</h3>
+
+<p>
+Durante o processo de compilação, os pacotes de fontes necessários são baixados e instalados no diretório <i>buildroot/dl/</i>. Algumas vezes, alguns dos repositórios apresentam lentidão para download. Uma alternativa é, depois do término da primeira compilação, adicionar o diretório <i>dl/</i> ao controle de versionamento. Assim, fazeremos commit dos pacotes de fontes em nosso repositório na núvem, sem a necessidade utilizar repositórios de terceiros.
+</p>
+<p>
+O diretório <i>buildroot/dl/</i> esta na lista de arquivos ignorados pelo GIT (<i>.gitignore</i>). Assim, abra o arquivo <i>.gitignore</i> no diretório <i>buildroot/</i> e apague a linha <i>dl/</i>. Agora basta adicionar
+os pacotes de fontes e realizar <i>commit</i> e <i>push</i> para o servidor remoto. 
+</p>
+
+<a name="toc5"></a>
+<h1>3. Preparando o Buildroot para compilar para um alvo específico</h1>
+
+<p>
+O Buildroot pode gerar distribuições Linux para diferentes plataformas (x86, x86-64, MIPS, ARM...). Em nossas aulas usaremos a plataforma x86.
+</p>
+<p>
+Vá para diretório buildroot/ e execute o comando abaixo. Este comando irá configurar o Buildroot para gerar uma distribuição Linux para emulação com o QEMU. Veja o diretório configs/ para ter uma ideia das outras plataformas e configurações 
+disponíveis. 
+</p>
+
+<pre>  $ make qemu_x86_defconfig
+</pre>
+
+<p>
+O comando acima aplica a configuração padrão, contudo, iremos customizar algumas características do Linux kernel e da distribuição. Para isso, entre na interface de configuração do Buildroot: 
+</p>
+
+<pre>  $ make menuconfig
+</pre>
+
+<p>
+Navegue nos menus, conforme mostrado abaixo, apague a opção de DHCP e verifique se a porta TTY está configurada para console.
+</p>
+
+<pre>  System configuration  ---&gt; 
+  	 ()  Network interface to configure through DHCP
+  	 [*] Run a getty (login prompt) after boot  ---&gt;
+  		  (console) TTY port
+</pre>
+
+<p>
+Saia do menu de configurações salvando as opções.
+</p>
+<p>
+Entre no menu de configurações do kernel Linux.
+</p>
+
+<pre>  $ make linux-menuconfig
+</pre>
+
+<p>
+Se o comando falhar em função de algum problema com um certificado de segurança, execute novamente o comando <i>make menuconfig</i> para reconfigurar o Buildroot. Dessa vez, modifique os parâmetros passados ao comando <i>wget</i> adicionando a flag <i>--no-check-certificate</i> no menu Build options -&gt; Commands -&gt; Wget. Não esqueça de salvar as opções antes de sair e executar o comando <i>make linux-menuconfig</i> novamente.
+</p>
+<p>
+Habilite o driver Ethernet e1000, conforme mostrado abaixo.
+</p>
+
+<pre>  Device Drivers  ---&gt; 
+  	[*] Network device support  ---&gt;    
+  		[*]   Ethernet driver support  ---&gt; 
+  		&lt;*&gt;     Intel(R) PRO/1000 Gigabit Ethernet support 
+</pre>
+
+<p>
+Saia do menu de configurações salvando as opções.
+</p>
+
+<a name="toc6"></a>
+<h2>3.1. Compilação e Outputs</h2>
+
+<p>
+No diretório buildroot/, execute o comando make.
+</p>
+
+<pre>  $ make MAKEINFO=false
+</pre>
+
+<p>
+O tempo desta operação dependerá da máquina host utilizada e das configurações escolhidas.
+</p>
+
+<ul>
+<li>Compilador para cross-compilar para a arquitetura alvo em $TOPDIR/output/toolchain/ (apenas quando houver cross-compilação).
+</li><li>Descompacta, configura e compila todos os pacotes selecionados usando o compilador gerado =&gt; $TOPDIR/output/build/&lt;package&gt;-&lt;version&gt;
+</li><li>Instala os pacotes compilados para =&gt; $TOPDIR/output/target
+</li><li>Cria o sistema de arquivos raiz (root) =&gt; $TOPDIR/output/images/rootfs.ext2.
+<p></p>
+Experimente montar a imagem do sistema de arquivo em sua máquina alvo:
+<p></p>
+
+<pre>  $ mount -o loop output/images/rootfs.ext2 ../rootfs/
+</pre>
+
+<p></p>
+</li><li>Gera a imagem do Kernel =&gt; $TOPDIR/output/images/bzImage
+</li></ul>
+
+<a name="toc7"></a>
+<h1>4. Emulando com QEMU</h1>
+
+<p>
+Caso o comando qemu-system-i386 não seja encontrado, será necessário instalar o QEMU no sistema (isso precisa ser feito apenas uma vez):
+</p>
+
+<pre>  $ sudo apt-get install qemu-system
+</pre>
+
+<p>
+No diretório linuxdistro/ execute o comando abaixo para emular a distribuição recém compilada. 
+</p>
+
+<pre>  $ qemu-system-i386 --kernel buildroot/output/images/bzImage --hda buildroot/output/images/rootfs.ext2 --nographic --append "console=ttyS0 root=/dev/sda" 
+</pre>
+
+<p>
+Para encerrar o QEMU, abra outro terminal e execute:
+</p>
+
+<pre>  $ killall qemu-system-i386
+</pre>
+
+<!-- html code generated by txt2tags 2.6 (http://txt2tags.org) -->
+<!-- cmdline: txt2tags 1.1 - buildroot.txt 1.2 - qemu-network.txt 1.3 - iperf.txt 2.1 - kernel_tutorial.txt 2.2 - system_call.txt 2.3 - driver_hello_world.txt 2.4 - iosched.txt 3.1 - ftrace.txt 3.2 - ftrace2.txt 3.3 - trace-cmd_kernelshark.txt 3.4 - sched_low_idle_not_used.txt 4.1 - memory_tools.txt 4.2 - process_segments.txt -->
+
+</body></html>
