@@ -11,14 +11,14 @@ Este programa é um monitor de sistema para Linux que coleta e exibe informaçõ
 python3 systeminfo.py
 ````
 
-O servidor ficará disponível em `http://localhost:8080/status`.
+O servidor ficará disponível em `http://192.168.1.10:8080/status`.
 
 **Observação importante:**
 Como o ambiente de execução está dentro do **Codespaces**, não foi possível acessar diretamente o endpoint pelo navegador do PC local. Tentativas de criar um start\_qemu personalizado com configuração de rede e port forwarding falharam.
 Portanto, o acesso foi feito via `curl` dentro do shell da máquina host do Codespaces, obtendo o sucesso esperado:
 
 ```bash
-curl http://127.0.0.1:8080/status
+curl http://192.168.1.10:8080/status
 ```
 
 ### Informações Coletadas
