@@ -1,0 +1,18 @@
+#!/bin/sh
+#
+# Configuring host communication.
+#
+
+case "$1" in
+	start)
+		python3 /usr/bin/systeminfo.py &
+        ;;
+	stop)
+		killall python3
+		exit 1
+		;;
+	*)
+		exit 1
+		;;
+esac
+exit 0
