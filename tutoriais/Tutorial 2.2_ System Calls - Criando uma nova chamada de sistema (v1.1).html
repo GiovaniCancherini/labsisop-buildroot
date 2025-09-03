@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Tutorial 2.2: System Calls - Criando uma nova chamada de sistema (v1.1)</title>
+<meta name="generator" content="http://txt2tags.org">
+<link rel="stylesheet" href="tutorial.css">
+<style>
+body{background-color:#fff;color:#000;}
+hr{background-color:#000;border:0;color:#000;}
+hr.heavy{height:5px;}
+hr.light{height:1px;}
+img{border:0;display:block;}
+img.right{margin:0 0 0 auto;}
+img.center{border:0;margin:0 auto;}
+table th,table td{padding:4px;}
+.center,header{text-align:center;}
+table.center {margin-left:auto; margin-right:auto;}
+.right{text-align:right;}
+.left{text-align:left;}
+.tableborder,.tableborder td,.tableborder th{border:1px solid #000;}
+.underline{text-decoration:underline;}
+</style>
+</head>
+<body>
+<header>
+<hgroup>
+<h1>Tutorial 2.2: System Calls - Criando uma nova chamada de sistema (v1.1)</h1>
+</hgroup>
+</header>
+<article>
+
+<nav>
+<div class="body" id="body">
+
+  <ol>
+  <li><a href="#toc1">Objetivo</a>
+  </li>
+  <li><a href="#toc2">Modificando o Kernel</a>
+    <ul>
+    <li><a href="#toc3">2.1. Adicionando o código da syscall</a>
+      <ul>
+      <li><a href="#toc4">2.1.1. processInfo.c</a>
+      </li>
+      <li><a href="#toc5">2.1.2. processInfo.h</a>
+      </li>
+      <li><a href="#toc6">2.1.3. Makefile</a>
+      </li>
+      </ul>
+    </li>
+    <li><a href="#toc7">2.2. Incluindo a nova syscall na API do kernel</a>
+      <ul>
+      <li><a href="#toc8">2.2.1. syscall_32.tbl</a>
+      </li>
+      <li><a href="#toc9">2.2.2. syscall.h</a>
+      </li>
+      <li><a href="#toc10">2.2.3. Makefile</a>
+      </li>
+      </ul>
+    </li>
+    <li><a href="#toc11">2.3. Recompilando as modificações no Kernel</a>
+    </li>
+    </ul>
+  </li>
+  <li><a href="#toc12">Aplicação de teste</a>
+  </li>
+  <li><a href="#toc13">Desafio 1</a>
+  </li>
+  <li><a href="#toc14">Desafio 2</a>
+  </li>
+  </ol>
+
+</div>
+</nav>
+<div class="body" id="body">
+
+<section id="toc1">
+<h1>1. Objetivo</h1>
+
+<p>
+Este tutorial é um guia para a implementação de novas chamadas de sistema no kernel (syscalls). Apesar de customizações no kernel Linux raramente incluírem novas syscalls, a implementação
+de uma syscall é um ótimo exercício para o entendimento dos mecanismos internos do kernel. Este guia exige que o tutorial <em>Tutorial 2.1: Linux Kernel - Obtendo os fontes e compilando com ajuda do Buildroot</em> 
+tenha sido realizado.
+</p>
+<p>
+A nova syscall irá retornar informações úteis a repeito de um processo, conforme PID informado.
+</p>
+
+</section>
+<section id="toc2">
+<h1>2. Modificando o Kernel</h1>
+
+<p>
+Primeiramente, iremos criar um diretório chamado syscall no diretório de fontes do kernel:
+</p>
+
+<pre>
+linux-4.13.9 $ mkdir syscall
+</pre>
+
+<p>
+Neste diretório colocaremos todos os arquivos necessários para a construção da syscall. Contudo, outros arquivo externos a este diretório precisarão ser modificados.
+</p>
+
+<section id="toc3">
+<h2>2.1. Adicionando o código da syscall</h2>
+
+<p>
+Este passo exigerá a criação de três arquivos no diretório <em>syscall/</em>: processInfo.c, processInfo.h e Makefile. 
+</p>
+
+<section id="toc4">
+<h3>2.1.1. processInfo.c</h3>
+
+<p>
+No diretório <em>syscall/</em>, crie um arquivo denominado <em>processInfo.c</em> e adicione o código abaixo:
+</p>
+
+<pre>
+#include &lt;linux/kernel.h&gt;
+#include &lt;linux/init.h&gt;
+#include &lt;linux/sched.h&gt;
+#include &lt;linux/syscalls.h&gt;
+#include "processInfo.h"
+  
+asmlinkage long sys_listProcessInfo(long pid, const char __user *buf, int size) {
+	struct task_struct *proces;
+	unsigned char kbuf[256];
+	int bufsz;
+	int ret;
+
+	/* Find the process */
+	for_each_process(proces) {
+		if( (long)task_pid_nr(proces) == pid){
+			/* Print the process info to the buffer */
+			snprintf(kbuf, sizeof(kbuf), "Process: %s\n PID_Number: %ld\n Process State: %ld\n Priority: %ld\n RT_Priority: %ld\n Static Priority: %ld\n Normal Priority: %ld\n", 
+					proces-&gt;comm, 
+					(long)task_pid_nr(proces), 
+					(long)proces-&gt;state, 
+					(long)proces-&gt;prio, 
+					(long)proces-&gt;rt_priority, 
+					(long)proces-&gt;static_prio, (long)proces-&gt;normal_prio);
+			bufsz = strlen(kbuf)+1;
+
+			/* User buffer is too small */
+			if(bufsz &gt; size){
+				return -1;
+			}
+
+			/* success */
+			ret = copy_to_user((void*)buf, (void*)kbuf, bufsz);
+
+			return bufsz - ret;
+		}
+	}
+
+	/* Process not found */
+	return -2;	
+}
+</pre>
+
+<p>
+Este é o código que será executado pela syscall.
+</p>
+
+</section>
+<section id="toc5">
+<h3>2.1.2. processInfo.h</h3>
+
+<p>
+No diretório <em>syscall/</em>, crie um arquivo denominado <em>processInfo.h</em> e adicione o código abaixo:
+</p>
+
+<pre>
+asmlinkage long sys_listProcessInfo(long pid, const char __user *buf, int size);			  
+</pre>
+
+</section>
+<section id="toc6">
+<h3>2.1.3. Makefile</h3>
+
+<p>
+No diretório <em>syscall/</em>, crie um arquivo denominado <em>Makefile</em> e adicione a linha abaixo:
+</p>
+
+<pre>
+obj-y:=processInfo.o
+</pre>
+
+</section>
+</section>
+<section id="toc7">
+<h2>2.2. Incluindo a nova syscall na API do kernel</h2>
+
+<p>
+Neste ponto, todo o código necessário para execução da syscall já foi escrito no diretório <em>syscall/</em>. Agora, precisamos adicionar a nova chamada na API do kernel, para que, ela possa
+ser invocada pelas aplicações. 
+</p>
+
+<section id="toc8">
+<h3>2.2.1. syscall_32.tbl</h3>
+
+<p>
+Abra o arquivo <em>syscall_32.tbl</em>, conforme o caminho abaixo:
+</p>
+
+<pre>
+linux-4.13.9/arch/x86/entry/syscalls/syscall_32.tbl
+</pre>
+
+<p>
+Adicione a seguinte linha no final do arquivo:
+</p>
+
+<pre>
+385	i386	listProcessInfo		sys_listProcessInfo
+</pre>
+
+<p>
+Observe que <strong>385</strong> é o código da syscall, isto é, é o número que as aplicações de usuário deverão usar ao invocar a syscall. Nunca poderá existir duas syscalls com o mesmo número. 
+</p>
+
+</section>
+<section id="toc9">
+<h3>2.2.2. syscall.h</h3>
+
+<p>
+Abra o arquivo <em>syscalls.h</em>, conforme o caminho abaixo:
+</p>
+
+<pre>
+linux-4.13.9/include/linux/syscalls.h
+</pre>
+
+<p>
+Adicione a seguinte linha no final do arquivo:
+</p>
+
+<pre>
+asmlinkage long sys_listProcessInfo(long pid, const char __user *buf, int size);
+</pre>
+
+</section>
+<section id="toc10">
+<h3>2.2.3. Makefile</h3>
+
+<p>
+No makefile do diretório raiz dos fontes (<em>linux-4.13.9/</em>), também conhecido como <em>makefile top level</em>, por ser o principal makefile da árvore de fontes, encontre a seguinte linha:
+</p>
+
+<pre>
+core-y		+= kernel/ certs/ mm/ fs/ ipc/ security/ crypto/ block/
+</pre>
+
+<p>
+Adicione o diretório <em>syscall/</em> ao final da linha, ficando:
+</p>
+
+<pre>
+core-y		+= kernel/ certs/ mm/ fs/ ipc/ security/ crypto/ block/ syscall/
+</pre>
+
+<p>
+Comite todas as modificações. Veja o item a seguir para entender como recompilar o kernel mais rapidamente sem a necessidade de enviar as modificações para a nuvem.
+</p>
+
+<pre>
+linux-4.13.9$ git add syscall/
+linux-4.13.9$ git commit -a -m "added a kernel syscall"
+linux-4.13.9$ git push
+</pre>
+
+</section>
+</section>
+<section id="toc11">
+<h2>2.3. Recompilando as modificações no Kernel</h2>
+
+<p>
+Conforme explicado no tutorial 2.1, é necessário apagar os arquivos abaixo para que o Buildroot sincronize sua cópia dos fontes do kernel com o repositório onde foram realizadas as alterações. No diretório do buildroot:
+</p>
+
+<pre>
+$ rm output/build/linux-custom/.stamp_built
+$ rm output/build/linux-custom/.stamp_configured
+$ rm output/build/linux-custom/.stamp_rsynced 
+</pre>
+
+<p>
+Após, execute o comando <em>make</em>. Se ao final o processo falhar, pode ser necessário remover o arquivo contendo uma cópia dos fontes do kernel (<em>dl/linux-custom.tar.gz</em>), e executar um <em>make clean</em> antes de reconstruir a imagem com <em>make</em>.
+</p>
+<p>
+O Buildroot usa os arquivos <em>.stamp_</em> para indicar quais procedimentos foram realizados em cada diretório de fontes. Isso torna possível recomeçar uma compilação do ponto onde ela foi interrompida. 
+No caso acima, estamos informando ao buildroot que ele precisa extrair, configurar e compilar o kernel. Os outros pacotes não precisarão ser recompilados. 
+</p>
+
+</section>
+</section>
+<section id="toc12">
+<h1>3. Aplicação de teste</h1>
+
+<p>
+Agora, precisamos de uma aplicação para exercitar a nova syscall. Crie um arquivo denominado <em>syscall_test.c</em> no diretório <em>custom-scripts/</em> do Buildroot, com o seguinte conteúdo:
+</p>
+
+<pre>
+#include &lt;stdio.h&gt;
+#include &lt;linux/kernel.h&gt;
+#include &lt;sys/syscall.h&gt;
+#include &lt;unistd.h&gt;
+#include &lt;stdlib.h&gt;
+
+#define SYSCALL_PROCESSINFO	385
+
+void usage(char* s){
+	printf("Usage: %s &lt;PID&gt;\n", s);
+	exit(0);
+}
+
+int main(int argc, char** argv){  
+	char buf[256];
+	long ret;
+	int pid;
+	
+	if(argc &lt; 2){
+		usage(argv[0]);
+	}
+	
+	pid = atoi(argv[1]);
+	
+	printf("Invoking 'listProcessInfo' system call.\n");
+         
+	ret = syscall(SYSCALL_PROCESSINFO, pid, buf, sizeof(buf)); 
+         
+	if(ret &gt; 0) {
+		/* Success, show the process info. */
+		printf("%s\n", buf);
+	}
+	else {
+		printf("System call 'listProcessInfo' did not execute as expected error %d\n", ret);
+	}
+          
+	return 0;
+}
+</pre>
+
+<p>
+Adicione as seguintes linhas no script <em>buildroot/board/qemu/x86/post-build.sh</em>:
+</p>
+
+<pre>
+#Compile the syscall_test.c
+BUILDROOT_DIR=$BASE_DIR/..
+COMPILER=$BUILDROOT_DIR/output/host/bin/i686-buildroot-linux-gnu-gcc
+$COMPILER -o $BUILDROOT_DIR/output/target/bin/syscall_test $BUILDROOT_DIR/custom-scripts/syscall_test.c
+</pre>
+
+<p>
+Gere novamente o rootfs (make no diretório do Buildroot).
+</p>
+<p>
+Finalmente estamos prontos para testar a nossa syscall. Emule sua distribuição e execute a aplicação <em>syscall_test</em>, indicando um PID qualquer (encontre o PID de um processo com o comando ps).
+</p>
+
+<pre>
+$ syscall_test 62
+Invoking 'listProcessInfo' system call.
+Process: klogd
+ PID_Number: 62
+ Process State: 1
+ Priority: 120
+ RT_Priority: 0
+ Static Priority: 120
+ Normal Priority: 120
+</pre>
+
+</section>
+<section id="toc13">
+<h1>4. Desafio 1</h1>
+
+<p>
+Adicione uma nova chamada de sistema para retornar uma lista com todos os processos em estado de <em>sleep</em>. Um processo fica em estado de <em>sleep</em>
+quando ele precisa de recursos que não estão disponíveis no momento. Quando em estado de <em>sleep</em>, o processo não utiliza CPU. Para descobrir
+se um processo esta nesse estado, verifique se o estado dele é TASK_RUNNING (em execução), TASK_INTERRUPTIBLE (processo do usuário em <em>sleep</em>) ou TASK_UNINTERRUPTIBLE (processo do kernel / chamada de sistema em <em>sleep</em>).
+</p>
+
+</section>
+<section id="toc14">
+<h1>5. Desafio 2</h1>
+
+<p>
+Considerando os modificações necessárias no kernel para a adição de novas chamadas de sistema apresentadas nesse tutorial, e considerando o tutorial encontrado em <a href="https://brennan.io/2016/11/14/kernel-dev-ep3/">https://brennan.io/2016/11/14/kernel-dev-ep3/</a>, adicione uma nova chamada de sistema que recebe uma mensagem enviada por uma aplicação de usuário e imprime essa mensagem no <em>log</em> (as funções <em>strncpy_from_user()</em> e <em>printk()</em> podem ser usadas).
+</p>
+</section>
+</div>
+
+<!-- html code generated by txt2tags 3.4 (http://txt2tags.org) -->
+<!-- cmdline: txt2tags 1.1 - buildroot.t2t 1.2 - qemu-network.t2t 1.3 - iperf.t2t 2.1 - kernel_tutorial.t2t 2.2 - system_call.t2t 2.3 - driver_hello_world.t2t 2.4 - iosched.t2t 3.1 - ftrace.t2t 3.2 - ftrace2.t2t 3.3 - trace-cmd_kernelshark.t2t 3.4 - sched_low_idle_not_used.t2t 4.1 - memory_tools.t2t 4.2 - process_segments.t2t -->
+</article></body></html>
