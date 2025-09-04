@@ -19,3 +19,6 @@ $COMPILER -o $BUILDROOT_DIR/output/target/bin/syscall_test $BUILDROOT_DIR/custom
 
 # Compile o syscall_desafio1_processSleep.c
 $COMPILER -o $BUILDROOT_DIR/output/target/bin/syscall_desafio1_processSleep $BUILDROOT_DIR/custom-scripts/syscall_desafio1_processSleep.c
+
+# Compile o syscall_desafio2_processListenMessage.c
+$COMPILER -o $BUILDROOT_DIR/output/target/bin/syscall_desafio2_processListenMessage $BUILDROOT_DIR/custom-scripts/syscall_desafio2_processListenMessage.c
