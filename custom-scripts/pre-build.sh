@@ -13,4 +13,7 @@ if [ -d "$BASE_DIR" ]; then
     chmod +x $BASE_DIR/target/etc/init.d/S60tp1systeminfo-config
     cp $BASE_DIR/../tp1-systeminfo/systeminfo.py $BASE_DIR/target/usr/bin/
     chmod +x $BASE_DIR/target/usr/bin/systeminfo.py
+
+    # 2.3
+    make -C $BASE_DIR/../modules/simple_driver/
 fi
