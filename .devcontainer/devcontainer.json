@@ -5,7 +5,6 @@
       "extensions": [
         "ms-python.python",
         "eamodio.gitlens",
-        "MS-CEINTL.vscode-language-pack-pt-BR",
         "ms-vscode.cpptools",
         "danielpinto8zz6.c-cpp-compile-run",
         "mhutchie.git-graph",
