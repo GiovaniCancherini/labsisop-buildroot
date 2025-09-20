@@ -1,0 +1,3 @@
+/workspaces/labsisop-buildroot/modules/simple_driver_desafio/simple_driver_desafio.ko
+/workspaces/labsisop-buildroot/modules/simple_driver_desafio/simple_driver_desafio.o
+

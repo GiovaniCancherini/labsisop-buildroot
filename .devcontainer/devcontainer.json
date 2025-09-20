@@ -1,0 +1,29 @@
+{
+  "name": "codespace-labsysop",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-python.python",
+        "eamodio.gitlens",
+        "MS-CEINTL.vscode-language-pack-pt-BR",
+        "ms-vscode.cpptools",
+        "danielpinto8zz6.c-cpp-compile-run",
+        "mhutchie.git-graph",
+        "GitHub.copilot",
+        "GitHub.copilot-chat",
+        "george-alisson.html-preview-vscode",
+        "AykutSarac.jsoncrack-vscode",
+        "shd101wyy.markdown-preview-enhanced",
+        "PKief.material-icon-theme",
+        "heyprincesingh.pycache-cleaner",
+        "ms-python.vscode-pylance",
+        "ms-python.debugpy",
+        "ms-python.vscode-python-envs",
+        "donjayamanne.python-extension-pack",
+        "mechatroner.rainbow-csv",
+        "timonwong.shellcheck",
+        "jakobhoeg.vscode-pokemon"
+      ]
+    }
+  }
+}

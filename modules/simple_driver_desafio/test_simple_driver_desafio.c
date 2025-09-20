@@ -5,50 +5,43 @@
 #include <string.h>
 #include <unistd.h>
 
-#define BUFFER_LENGTH 256
+#define BUFFER_LENGTH 512
 
 int main() {
     int fd;
     char receive[BUFFER_LENGTH];
     char stringToSend[BUFFER_LENGTH];
 
-    printf("Starting device test...\n");
+    printf("Starting XTEA device test...\n");
 
-    fd = open("/dev/simple_driver", O_RDWR);
+    fd = open("/dev/simple_driver_desafio", O_RDWR);
     if (fd < 0) {
         perror("Failed to open the device...");
         return errno;
     }
 
-    while (1) {
-        printf("\nDigite uma string para enviar (ou 'exit' para sair):\n> ");
-        if (!fgets(stringToSend, BUFFER_LENGTH, stdin))
-            break;
+    // Exemplo de comando pronto (16 bytes / 32 hex)
+    snprintf(stringToSend, BUFFER_LENGTH,
+        "enc f0e1d2c3 b4a59687 78695a4b 3c2d1e0f 16 aabbccddeeff00112233445566778899");
 
-        // remove \n do final
-        stringToSend[strcspn(stringToSend, "\n")] = '\0';
+    printf("Enviando comando: %s\n", stringToSend);
 
-        if (strcmp(stringToSend, "exit") == 0)
-            break;
-
-        // escreve no driver
-        if (write(fd, stringToSend, strlen(stringToSend)) < 0) {
-            perror("Erro ao escrever no device");
-            break;
-        }
-        printf("Mensagem enviada!\n");
-
-        // lê de volta
-        int ret = read(fd, receive, BUFFER_LENGTH - 1);
-        if (ret < 0) {
-            perror("Erro ao ler do device");
-            break;
-        }
-        receive[ret] = '\0';
-        printf("Mensagem recebida: [%s]\n", receive);
+    if (write(fd, stringToSend, strlen(stringToSend)) < 0) {
+        perror("Erro ao escrever no device");
+        close(fd);
+        return 1;
     }
 
+    int ret = read(fd, receive, BUFFER_LENGTH - 1);
+    if (ret < 0) {
+        perror("Erro ao ler do device");
+        close(fd);
+        return 1;
+    }
+
+    receive[ret] = '\0';
+    printf("Resultado recebido: [%s]\n", receive);
+
     close(fd);
-    printf("End of program.\n");
     return 0;
 }
