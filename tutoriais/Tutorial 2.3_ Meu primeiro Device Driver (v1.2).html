@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<!-- saved from url=(0103)https://moodle.pucrs.br/pluginfile.php/4185973/mod_resource/content/6/2.3%20-%20driver_hello_world.html -->
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+
+<title>Tutorial 2.3: Meu primeiro Device Driver (v1.2)</title>
+<meta name="generator" content="http://txt2tags.org">
+<link rel="stylesheet" href="./Tutorial 2.3_ Meu primeiro Device Driver (v1.2)_files/tutorial.css">
+<style>
+body{background-color:#fff;color:#000;}
+hr{background-color:#000;border:0;color:#000;}
+hr.heavy{height:5px;}
+hr.light{height:1px;}
+img{border:0;display:block;}
+img.right{margin:0 0 0 auto;}
+img.center{border:0;margin:0 auto;}
+table th,table td{padding:4px;}
+.center,header{text-align:center;}
+table.center {margin-left:auto; margin-right:auto;}
+.right{text-align:right;}
+.left{text-align:left;}
+.tableborder,.tableborder td,.tableborder th{border:1px solid #000;}
+.underline{text-decoration:underline;}
+</style>
+</head>
+<body>
+<header>
+<hgroup>
+<h1>Tutorial 2.3: Meu primeiro Device Driver (v1.2)</h1>
+</hgroup>
+</header>
+<article>
+
+<nav>
+<div class="body" id="body">
+
+  <ol>
+  <li><a href="https://moodle.pucrs.br/pluginfile.php/4185973/mod_resource/content/6/2.3%20-%20driver_hello_world.html#toc1">Módulos carregáveis do Kernel (Kernel Loadable Modules)</a>
+    <ul>
+    <li><a href="https://moodle.pucrs.br/pluginfile.php/4185973/mod_resource/content/6/2.3%20-%20driver_hello_world.html#toc2">1.1. O primeiro Device Driver: Hello World</a>
+    </li>
+    </ul>
+  </li>
+  <li><a href="https://moodle.pucrs.br/pluginfile.php/4185973/mod_resource/content/6/2.3%20-%20driver_hello_world.html#toc3">Compilando e instalando o Simple Driver</a>
+    <ul>
+    <li><a href="https://moodle.pucrs.br/pluginfile.php/4185973/mod_resource/content/6/2.3%20-%20driver_hello_world.html#toc4">2.1. Testando o Driver</a>
+    </li>
+    </ul>
+  </li>
+  <li><a href="https://moodle.pucrs.br/pluginfile.php/4185973/mod_resource/content/6/2.3%20-%20driver_hello_world.html#toc5">Atividade 1</a>
+  </li>
+  <li><a href="https://moodle.pucrs.br/pluginfile.php/4185973/mod_resource/content/6/2.3%20-%20driver_hello_world.html#toc6">Atividade 2</a>
+  </li>
+  <li><a href="https://moodle.pucrs.br/pluginfile.php/4185973/mod_resource/content/6/2.3%20-%20driver_hello_world.html#toc7">Desafio</a>
+  </li>
+  </ol>
+
+</div>
+</nav>
+<div class="body" id="body">
+<p>
+O objetivo deste tutorial é compilar, instalar na distribuição e carregar exemplos de device drivers no kernel Linux.
+</p>
+
+<section id="toc1">
+<h1>1. Módulos carregáveis do Kernel (Kernel Loadable Modules)</h1>
+
+<p>
+Módulos do kernel são programas (ou trechos de código) separados e compilados, que podem ser carregados dinamicamente em um kernel Linux em execução. Um módulo pode ser comparado a uma biblioteca compartilhada (ou <em>dynamically linked library</em>) entre programas de usuário, no entanto um módulo do kernel executa com acesso direto aos recursos do kernel, uma vez que executa com permissões para tal. Um módulo do kernel pode prover funcionalidade de device driver, oferecer novos recursos ao sistema como extensões do núcleo, suporte a um novo sistema de arquivos ou como biblioteca de funções auxiliares para outros módulos.
+</p>
+
+<section id="toc2">
+<h2>1.1. O primeiro Device Driver: Hello World</h2>
+
+<p>
+Crie um diretório de módulos e um subdiretório que irá conter nosso primeiro exemplo dentro do diretório principal do Buildroot:
+</p>
+
+<pre>$ mkdir modules
+$ mkdir modules/hello
+$ cd modules/hello
+</pre>
+
+<p>
+Crie um arquivo denominado <em>khello.c</em> no diretório com o seguinte conteúdo:
+</p>
+
+<pre>#include &lt;linux/init.h&gt;
+#include &lt;linux/module.h&gt;
+
+MODULE_LICENSE("Dual BSD/GPL");
+
+static int hello_init(void)
+{
+	printk(KERN_ALERT "Hello, world\n");
+	return 0;
+}
+
+static void hello_exit(void)
+{
+	printk(KERN_ALERT "Goodbye, cruel world\n");
+}
+
+module_init(hello_init);
+module_exit(hello_exit);
+</pre>
+
+<p>
+O módulo descrito não possui nada de especial. São definidos apenas o comportamento do módulo durante os processos de carga e descarga, onde são impressas duas mensagens diferentes. A função <em>printk()</em> é oferecida para desenvolvimento interno do kernel, e está sendo usada para demonstrar a funcionalidade do módulo.
+</p>
+<p>
+Adicione também um <em>Makefile</em> para automatizar o processo de compilação do módulo:
+</p>
+
+<pre>obj-m := khello.o
+BUILDROOT_DIR := ../..
+KDIR := $(BUILDROOT_DIR)/output/build/linux-custom
+COMPILER := $(BUILDROOT_DIR)/output/host/bin/i686-buildroot-linux-uclibc-gcc
+
+all:
+	$(MAKE) -C $(KDIR) M=$$PWD
+	$(MAKE) -C $(KDIR) M=$$PWD modules_install INSTALL_MOD_PATH=../../target
+
+clean:
+	rm -f *.o *.ko .*.cmd
+	rm -f modules.order
+	rm -f Module.symvers
+	rm -f khello.mod.c
+</pre>
+
+<p>
+Para compilar e instalar o módulo no <em>rootfs</em>, execute o comando abaixo dentro do diretório <em>modules/hello/</em>:
+</p>
+
+<pre>$ make
+</pre>
+
+<p>
+Você pode verificar que o módulo foi corretamente compilado no diretório local e se foi instalado em <em>buildroot/output/target/lib/modules/4.13.9/extra/</em>.
+</p>
+<p>
+Para testar o módulo, é necessário atualizar a imagem do kernel e o sistema de arquivos gerados no tutorial anterior. Para isso execute:
+</p>
+
+<pre>cd ../../
+make
+</pre>
+
+<p>
+Após iniciar a emulação do kernel e sistema de arquivos, insira o módulo para verificar seu funcionamento:
+</p>
+
+<pre>$ modprobe khello
+</pre>
+
+<p>
+É possivel verificar se o módulo está carregado (ou se o mesmo foi posteriormente removido) utilizando o comando <em>lsmod</em>. Para remover o módulo, basta um comando:
+</p>
+
+<pre>$ rmmod khello
+</pre>
+
+<p>
+Verifique as mensagens do kernel em <em>/var/log/messages</em>.
+</p>
+
+</section>
+</section>
+<section id="toc3">
+<h1>2. Compilando e instalando o Simple Driver</h1>
+
+<p>
+O próximo driver a ser compilado e testado é denominado <em>Simple Driver</em>. Este driver comunica-se com uma aplicação (também fornecida) denominada <em>test_simple_char</em>.
+</p>
+<p>
+Primeiramente, obtenha o driver em anexo.
+</p>
+
+<p>
+Durante a geração do rootfs, desejamos compilar o driver e instalá-lo na distribuição. Para fazermos isso de maneira automatizada, devemos adicionar a seguinte linha no arquivo <em>pre-build.sh</em> encontrado no diretório custom_scripts/ (criado no Tutorial 1.2: Configurando a rede).
+</p>
+
+<pre>make -C $BASE_DIR/../modules/simple_driver/
+</pre>
+
+<p>
+Agora podemos montar a nova distribuição, incluindo o processo de compilação do driver. No diretório do Buildroot:
+</p>
+
+<pre>$ make
+</pre>
+
+<section id="toc4">
+<h2>2.1. Testando o Driver</h2>
+
+<p>
+Realize o processo de boot da nova distribuição no QEMU. Juntamente com o driver, deverá ser instalado um programa denominado <em>test_simple_driver</em> que deverá ser usado para testar o device driver. Antes de executar o programa, é necessário carregar o driver no sistema conforme o comando abaixo:
+</p>
+
+<pre>$ modprobe simple_driver
+</pre>
+
+<p>
+Agora, execute o programa:
+</p>
+
+<pre>$ test_simple_driver
+</pre>
+
+<p>
+Siga as instruções do programa. Verifique os logs do kernel após os testes.
+</p>
+
+</section>
+</section>
+<section id="toc5">
+<h1>3. Atividade 1</h1>
+
+<p>
+Modifique o driver proposto acima para armazenar mensagens recebidas através da chamada <em>write()</em> em uma lista encadeada (<em>struct list_head</em>). Toda vez que a função <em>read()</em> for chamada, a próxima mensagem da lista deve ser removida e devolvida para a aplicação. As funções para a manipulação de listas estão documentadas no material complementar e também podem ser encontradas nas <em>man pages</em>.
+</p>
+
+</section>
+<section id="toc6">
+<h1>4. Atividade 2</h1>
+
+<p>
+Modifique o Simple Driver (original) para implementar um driver de critografia (acessível em <em>/dev/xtea_driver</em>). O driver deve interagir com uma aplicação de teste por um conjunto de comandos de escrita e leitura. Para encriptar uma mensagem, pode-se usar o seguinte formato (comando, key[0], key[1], key[2], key[3], data_size, dados):
+</p>
+
+<pre>enc f0e1d2c3 b4a59687 78695a4b 3c2d1e0f 16 aabbccddeeff00112233445566778899aabbccddeeff
+</pre>
+
+<p>
+O código abaixo implementa as funções para criptografia (algoritmo XTEA) e pode ser usado como referência para sua implementação.
+</p>
+
+<pre>/*
+XTEA encryption algorithm
+
+based on reference code released into the public domain by David Wheeler and Roger Needham
+the code takes 64 bits of data in v[0] and v[1] and 128 bits of key in key[0] - key[3]
+
+recommended number of rounds is 32 (2 Feistel-network rounds are performed on each iteration).
+*/
+
+#include &lt;stdio.h&gt;
+#include &lt;stdint.h&gt;
+
+const uint32_t xtea_key[4] = {0xf0e1d2c3, 0xb4a59687, 0x78695a4b, 0x3c2d1e0f};
+
+void encipher(uint32_t num_rounds, uint32_t v[2], const uint32_t key[4]){
+	uint32_t i;
+	uint32_t v0 = v[0], v1 = v[1], sum = 0, delta = 0x9E3779B9;
+
+	for (i = 0; i &lt; num_rounds; i++){
+		v0 += (((v1 &lt;&lt; 4) ^ (v1 &gt;&gt; 5)) + v1) ^ (sum + key[sum &amp; 3]);
+		sum += delta;
+		v1 += (((v0 &lt;&lt; 4) ^ (v0 &gt;&gt; 5)) + v0) ^ (sum + key[(sum&gt;&gt;11) &amp; 3]);
+	}
+	v[0] = v0; v[1] = v1;
+}
+
+void decipher(uint32_t num_rounds, uint32_t v[2], const uint32_t key[4]){
+	uint32_t i;
+	uint32_t v0 = v[0], v1 = v[1], delta = 0x9E3779B9, sum = delta * num_rounds;
+
+	for (i = 0; i &lt; num_rounds; i++){
+		v1 -= (((v0 &lt;&lt; 4) ^ (v0 &gt;&gt; 5)) + v0) ^ (sum + key[(sum&gt;&gt;11) &amp; 3]);
+		sum -= delta;
+		v0 -= (((v1 &lt;&lt; 4) ^ (v1 &gt;&gt; 5)) + v1) ^ (sum + key[sum &amp; 3]);
+	}
+	v[0] = v0; v[1] = v1;
+}
+
+int main(void){
+	uint32_t msg[2] = {0x12345678, 0x90123456};
+
+	printf("message: %8x%8x\n", msg[0], msg[1]);
+	encipher(32, msg, xtea_key);
+	printf("encipher: %8x%8x\n", msg[0], msg[1]);
+	decipher(32, msg, xtea_key);
+	printf("decipher: %8x%8x\n", msg[0], msg[1]);
+
+	return 0;
+}
+</pre>
+
+</section>
+<section id="toc7">
+<h1>5. Desafio</h1>
+
+<p>
+Modifique o driver implementado na Atividade 2 para suportar uma chave criptográfica definida pelo usuário. No momento de carga do módulo, a chave deve ser passada por parâmetros como no exemplo:
+</p>
+
+<pre>$ modprobe xtea_driver key0="f0e1d2c3" key1="b4a59687" key2="78695a4b" key3="3c2d1e0f"
+</pre>
+
+<p>
+Utilize essa referência para realizar o desafio proposto: <a href="http://www.tldp.org/LDP/lkmpg/2.6/html/lkmpg.html#AEN323">http://www.tldp.org/LDP/lkmpg/2.6/html/lkmpg.html#AEN323</a> .
+</p>
+</section>
+</div>
+
+<!-- html code generated by txt2tags 3.4 (http://txt2tags.org) -->
+<!-- cmdline: txt2tags 1.1 - buildroot.t2t 1.2 - qemu-network.t2t 1.3 - iperf.t2t 2.1 - kernel_tutorial.t2t 2.2 - system_call.t2t 2.3 - driver_hello_world.t2t 2.4 - iosched.t2t 3.1 - ftrace.t2t 3.2 - ftrace2.t2t 3.3 - trace-cmd_kernelshark.t2t 3.4 - sched_low_idle_not_used.t2t 4.1 - memory_tools.t2t 4.2 - process_segments.t2t -->
+</article>
+</body></html>
