@@ -33,6 +33,21 @@ static uint32_t tea_key[4];
 static char result_buf[MAX_DATA];
 static size_t result_size = 0;
 
+static uint32_t key0 = 0, key1 = 0, key2 = 0, key3 = 0;
+
+/* ----------- Module Params ------------ */
+module_param(key0, uint, 0444);  // tipo uint, permissões de leitura
+MODULE_PARM_DESC(key0, "First 32-bit word of XTEA key in hex");
+
+module_param(key1, uint, 0444);
+MODULE_PARM_DESC(key1, "Second 32-bit word of XTEA key in hex");
+
+module_param(key2, uint, 0444);
+MODULE_PARM_DESC(key2, "Third 32-bit word of XTEA key in hex");
+
+module_param(key3, uint, 0444);
+MODULE_PARM_DESC(key3, "Fourth 32-bit word of XTEA key in hex");
+
 /* ---------------- XTEA ---------------- */
 static void xtea_encipher(uint32_t v[2], const uint32_t key[4]) {
     uint32_t y, z, sum, delta;
@@ -134,8 +149,6 @@ static ssize_t dev_read(struct file *filep, char *buffer, size_t len, loff_t *of
 static ssize_t dev_write(struct file *filep, const char __user *buffer, size_t len, loff_t *offset) {
     char *kbuf;
     char op[4], data_hex[MAX_DATA];
-    int data_size;
-    uint32_t k0,k1,k2,k3;
     int parsed;
     int enc;
 
@@ -144,11 +157,10 @@ static ssize_t dev_write(struct file *filep, const char __user *buffer, size_t l
     if(copy_from_user(kbuf, buffer, len)) { kfree(kbuf); return -EFAULT; }
     kbuf[len] = '\0';
 
-    parsed = sscanf(kbuf, "%3s %x %x %x %x %d %s", op, &k0, &k1, &k2, &k3, &data_size, data_hex);
+    parsed = sscanf(kbuf, "%3s %s", op, data_hex);  // só operação + dados
     kfree(kbuf);
-    if(parsed < 7) return -EINVAL;
+    if(parsed < 2) return -EINVAL;
 
-    tea_key[0] = k0; tea_key[1] = k1; tea_key[2] = k2; tea_key[3] = k3;
     enc = (strncmp(op,"enc",3)==0);
 
     if(process_tea(data_hex, result_buf, enc)) return -EINVAL;
@@ -172,18 +184,41 @@ static struct file_operations fops = {
 
 /* ---------- INIT / EXIT ---------- */
 static int __init xtea_init(void) {
+    tea_key[0] = key0;
+    tea_key[1] = key1;
+    tea_key[2] = key2;
+    tea_key[3] = key3;
+
     majorNumber = register_chrdev(0, DEVICE_NAME, &fops);
     xteaClass = class_create(THIS_MODULE, CLASS_NAME);
     xteaDevice = device_create(xteaClass, NULL, MKDEV(majorNumber,0), NULL, DEVICE_NAME);
-    printk(KERN_INFO "XTEA Driver loaded\n");
+
+    printk(KERN_INFO "XTEA Driver loaded with key: %08x %08x %08x %08x\n",
+           tea_key[0], tea_key[1], tea_key[2], tea_key[3]);
+
     return 0;
 }
 
+
 static void __exit xtea_exit(void) {
-    device_destroy(xteaClass, MKDEV(majorNumber,0));
-    class_destroy(xteaClass);
-    unregister_chrdev(majorNumber, DEVICE_NAME);
-    printk(KERN_INFO "XTEA Driver unloaded\n");
+    majorNumber = register_chrdev(0, DEVICE_NAME, &fops);
+    if (majorNumber < 0) {
+        printk(KERN_ALERT "XTEA failed to register a major number\n");
+        return majorNumber;
+    }
+
+    xteaClass = class_create(THIS_MODULE, CLASS_NAME);
+    if (IS_ERR(xteaClass)) {
+        unregister_chrdev(majorNumber, DEVICE_NAME);
+        return PTR_ERR(xteaClass);
+    }
+
+    xteaDevice = device_create(xteaClass, NULL, MKDEV(majorNumber,0), NULL, DEVICE_NAME);
+    if (IS_ERR(xteaDevice)) {
+        class_destroy(xteaClass);
+        unregister_chrdev(majorNumber, DEVICE_NAME);
+        return PTR_ERR(xteaDevice);
+    }
 }
 
 module_init(xtea_init);

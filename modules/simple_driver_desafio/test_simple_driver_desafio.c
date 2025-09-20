@@ -22,7 +22,7 @@ int main() {
 
     // Exemplo de comando pronto (16 bytes / 32 hex)
     snprintf(stringToSend, BUFFER_LENGTH,
-        "enc f0e1d2c3 b4a59687 78695a4b 3c2d1e0f 16 aabbccddeeff00112233445566778899");
+         "enc aabbccddeeff00112233445566778899"); // só operação + dados
 
     printf("Enviando comando: %s\n", stringToSend);
 
