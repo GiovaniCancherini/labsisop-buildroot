@@ -14,7 +14,7 @@ int main() {
 
     printf("Starting device test...\n");
 
-    fd = open("/dev/simple_driver", O_RDWR);
+    fd = open("/dev/simple_driver_atividade2", O_RDWR);
     if (fd < 0) {
         perror("Failed to open the device...");
         return errno;

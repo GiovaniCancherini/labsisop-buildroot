@@ -15,8 +15,8 @@
 #include <linux/slab.h>      // kmalloc/kfree
 #include <linux/list.h>      // listas encadeadas do kernel
 
-#define  DEVICE_NAME "simple_driver" ///< The device will appear at /dev/simple_driver using this value
-#define  CLASS_NAME  "simple_class"        ///< The device class -- this is a character device driver
+#define  DEVICE_NAME "simple_driver_desafio" ///< The device will appear at /dev/simple_driver using this value
+#define  CLASS_NAME  "simple_desafio_class"        ///< The device class -- this is a character device driver
 #define MAX_DATA 1024
 
 MODULE_LICENSE("GPL");            ///< The license type -- this affects available functionality

@@ -15,9 +15,8 @@
 #include <linux/slab.h>      // kmalloc/kfree
 #include <linux/list.h>      // listas encadeadas do kernel
 
-#define  DEVICE_NAME "simple_driver" ///< The device will appear at /dev/simple_driver using this value
-#define  CLASS_NAME  "simple_class"        ///< The device class -- this is a character device driver
-#define MAX_DATA 1024
+#define  DEVICE_NAME "simple_driver_atividade2" ///< The device will appear at /dev/simple_driver using this value
+#define  CLASS_NAME  "simple_atividade2_class"        ///< The device class -- this is a character device driver
 
 MODULE_LICENSE("GPL");            ///< The license type -- this affects available functionality
 MODULE_AUTHOR("Author Name");    ///< The author -- visible when you use modinfo
@@ -31,25 +30,20 @@ static int    numberOpens = 0;              ///< Counts the number of times the 
 static struct class *charClass  = NULL; ///< The device-driver class struct pointer
 static struct device *charDevice = NULL; ///< The device-driver device struct pointer
 
+// The prototype functions for the character driver -- must come before the struct definition
+static int     dev_open(struct inode *, struct file *);
+static int     dev_release(struct inode *, struct file *);
+static ssize_t dev_read(struct file *, char *, size_t, loff_t *);
+static ssize_t dev_write(struct file *, const char *, size_t, loff_t *);
+
 // cabeça da lista global
 static LIST_HEAD(msg_list);
-
-static char result_buf[MAX_DATA];   // resultado da última operação
-static int result_size = 0;
-static uint32_t key[4];             // chave XTEA
-static char operation[4];           // "enc" ou "dec"
 
 struct msg_node {
     struct list_head list;
     char *data;
     size_t len;
 };
-
-// The prototype functions for the character driver -- must come before the struct definition
-static int     dev_open(struct inode *, struct file *);
-static int     dev_release(struct inode *, struct file *);
-static ssize_t dev_read(struct file *, char *, size_t, loff_t *);
-static ssize_t dev_write(struct file *, const char *, size_t, loff_t *);
 
 /** @brief Devices are represented as file structure in the kernel. The file_operations structure from
  *  /linux/fs.h lists the callback functions that you wish to associated with your file operations
@@ -207,24 +201,3 @@ static int dev_release(struct inode *inodep, struct file *filep){
  */
 module_init(simple_init);
 module_exit(simple_exit);
-
-// Funções de cifra/decifra XTEA
-static void encipher(uint32_t num_rounds, uint32_t v[2], const uint32_t key[4]){
-    uint32_t i, v0=v[0], v1=v[1], sum=0, delta=0x9E3779B9;
-    for(i=0; i<num_rounds; i++){
-        v0 += (((v1<<4) ^ (v1>>5)) + v1) ^ (sum + key[sum & 3]);
-        sum += delta;
-        v1 += (((v0<<4) ^ (v0>>5)) + v0) ^ (sum + key[(sum>>11) & 3]);
-    }
-    v[0]=v0; v[1]=v1;
-}
-
-static void decipher(uint32_t num_rounds, uint32_t v[2], const uint32_t key[4]){
-    uint32_t i, v0=v[0], v1=v[1], delta=0x9E3779B9, sum=delta* num_rounds;
-    for(i=0; i<num_rounds; i++){
-        v1 -= (((v0<<4) ^ (v0>>5)) + v0) ^ (sum + key[(sum>>11) & 3]);
-        sum -= delta;
-        v0 -= (((v1<<4) ^ (v1>>5)) + v1) ^ (sum + key[sum & 3]);
-    }
-    v[0]=v0; v[1]=v1;
-}
