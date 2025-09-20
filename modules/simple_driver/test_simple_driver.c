@@ -1,3 +1,10 @@
+/**
+ * @brief  A Linux user space program that communicates with the LKM. It passes a
+ * string to the LKM and reads the response from the LKM. For this example to work the device
+ * must be called /dev/simple_driver.
+ * 
+ * Modified from Derek Molloy (http://www.derekmolloy.ie/ )
+*/
 #include <stdio.h>
 #include <stdlib.h>
 #include <errno.h>
@@ -5,50 +12,44 @@
 #include <string.h>
 #include <unistd.h>
 
-#define BUFFER_LENGTH 256
+#define BUFFER_LENGTH 256               ///< The buffer length (crude but fine)
 
-int main() {
-    int fd;
-    char receive[BUFFER_LENGTH];
-    char stringToSend[BUFFER_LENGTH];
+int main(){
+	int ret, fd;
+	char receive[BUFFER_LENGTH];     ///< The receive buffer from the LKM
+	char stringToSend[BUFFER_LENGTH];
+	
+	printf("Starting device test code example...\n");
+	
+	fd = open("/dev/simple_driver", O_RDWR);             // Open the device with read/write access
+	if (fd < 0){
+		perror("Failed to open the device...");
+		return errno;
+	}
+	
+	printf("Type in a short string to send to the kernel module:\n");
+	scanf("%[^\n]%*c", stringToSend);                // Read in a string (with spaces)
+	printf("Writing message to the device [%s].\n", stringToSend);
+	
+	ret = write(fd, stringToSend, strlen(stringToSend)); // Send the string to the LKM
+	if (ret < 0){
+		perror("Failed to write the message to the device.");
+		return errno;
+	}
 
-    printf("Starting device test...\n");
+	printf("Press ENTER to read back from the device...\n");
+	getchar();
 
-    fd = open("/dev/simple_driver", O_RDWR);
-    if (fd < 0) {
-        perror("Failed to open the device...");
-        return errno;
-    }
-
-    while (1) {
-        printf("\nDigite uma string para enviar (ou 'exit' para sair):\n> ");
-        if (!fgets(stringToSend, BUFFER_LENGTH, stdin))
-            break;
-
-        // remove \n do final
-        stringToSend[strcspn(stringToSend, "\n")] = '\0';
-
-        if (strcmp(stringToSend, "exit") == 0)
-            break;
-
-        // escreve no driver
-        if (write(fd, stringToSend, strlen(stringToSend)) < 0) {
-            perror("Erro ao escrever no device");
-            break;
-        }
-        printf("Mensagem enviada!\n");
-
-        // lê de volta
-        int ret = read(fd, receive, BUFFER_LENGTH - 1);
-        if (ret < 0) {
-            perror("Erro ao ler do device");
-            break;
-        }
-        receive[ret] = '\0';
-        printf("Mensagem recebida: [%s]\n", receive);
-    }
-
-    close(fd);
-    printf("End of program.\n");
-    return 0;
+	printf("Reading from the device...\n");
+	
+	ret = read(fd, receive, BUFFER_LENGTH);        // Read the response from the LKM
+	if (ret < 0){
+		perror("Failed to read the message from the device.");
+		return errno;
+	}
+	
+	printf("The received message is: [%s]\n", receive);
+	printf("End of the program\n");
+	
+	return 0;
 }
