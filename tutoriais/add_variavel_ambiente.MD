@@ -5,6 +5,14 @@ Adicione a variável LINUX_OVERRIDE_SRCDIR aos dois arquivos de inicialização:
 echo 'export LINUX_OVERRIDE_SRCDIR=/workspaces/labsisop-buildroot/labsysop-linux-4.13' | tee -a ~/.bashrc ~/.zshrc
 ```
 
+e também
+
+Adicione a variável PATH (para o compilador cruzado C) aos dois arquivos de inicialização:
+```
+echo 'export PATH=$PATH:/workspaces/labsisop-buildroot/output/host/bin' | tee -a ~/.bashrc ~/.zshrc
+```
+
+---
 
 Recarregue as configurações sem reiniciar o terminal:
 ```
