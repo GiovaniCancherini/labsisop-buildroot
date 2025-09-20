@@ -1,0 +1,3 @@
+/workspaces/labsisop-buildroot/modules/simple_driver_atividade1/simple_driver_atividade1.ko
+/workspaces/labsisop-buildroot/modules/simple_driver_atividade1/simple_driver_atividade1.o
+
