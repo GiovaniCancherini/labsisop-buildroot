@@ -12,6 +12,8 @@
 #include <linux/kernel.h>         // Contains types, macros, functions for the kernel
 #include <linux/fs.h>             // Header for the Linux file system support
 #include <linux/uaccess.h>
+#include <linux/slab.h>      // kmalloc/kfree
+#include <linux/list.h>      // listas encadeadas do kernel
 
 #define  DEVICE_NAME "simple_driver" ///< The device will appear at /dev/simple_driver using this value
 #define  CLASS_NAME  "simple_class"        ///< The device class -- this is a character device driver
@@ -34,6 +36,14 @@ static int     dev_release(struct inode *, struct file *);
 static ssize_t dev_read(struct file *, char *, size_t, loff_t *);
 static ssize_t dev_write(struct file *, const char *, size_t, loff_t *);
 
+// cabeça da lista global
+static LIST_HEAD(msg_list);
+
+struct msg_node {
+    struct list_head list;
+    char *data;
+    size_t len;
+};
 
 /** @brief Devices are represented as file structure in the kernel. The file_operations structure from
  *  /linux/fs.h lists the callback functions that you wish to associated with your file operations
@@ -46,7 +56,6 @@ static struct file_operations fops =
 	.write = dev_write,
 	.release = dev_release,
 };
-
 
 /** @brief The LKM initialization function
  *  The static keyword restricts the visibility of the function to within this C file. The __init
@@ -90,19 +99,22 @@ static int __init simple_init(void){
 	return 0;
 }
 
-
-/** @brief The LKM cleanup function
- *  Similar to the initialization function, it is static. The __exit macro notifies that if this
- *  code is used for a built-in driver (not a LKM) that this function is not required.
- */
 static void __exit simple_exit(void){
-	device_destroy(charClass, MKDEV(majorNumber, 0));     // remove the device
-	class_unregister(charClass);                          // unregister the device class
-	class_destroy(charClass);                             // remove the device class
-	unregister_chrdev(majorNumber, DEVICE_NAME);             // unregister the major number
-	printk(KERN_INFO "Simple Driver: goodbye from the LKM!\n");
-}
+    struct msg_node *node, *tmp;
 
+    // esvazia a lista antes de sair
+    list_for_each_entry_safe(node, tmp, &msg_list, list) {
+        list_del(&node->list);
+        kfree(node->data);
+        kfree(node);
+    }
+
+    device_destroy(charClass, MKDEV(majorNumber, 0));
+    class_unregister(charClass);
+    class_destroy(charClass);
+    unregister_chrdev(majorNumber, DEVICE_NAME);
+    printk(KERN_INFO "Simple Driver: goodbye from the LKM!\n");
+}
 
 /** @brief The device open function that is called each time the device is opened
  *  This will only increment the numberOpens counter in this case.
@@ -115,53 +127,62 @@ static int dev_open(struct inode *inodep, struct file *filep){
 	return 0;
 }
 
-
-/** @brief This function is called whenever device is being read from user space i.e. data is
- *  being sent from the device to the user. In this case is uses the copy_to_user() function to
- *  send the buffer string to the user and captures any errors.
- *  @param filep A pointer to a file object (defined in linux/fs.h)
- *  @param buffer The pointer to the buffer to which this function writes the data
- *  @param len The length of the b
- *  @param offset The offset if required
- */
 static ssize_t dev_read(struct file *filep, char *buffer, size_t len, loff_t *offset){
-	int error_count = 0;
-   
-	// copy_to_user has the format ( * to, *from, size) and returns 0 on success
-	error_count = copy_to_user(buffer, message, size_of_message);
+    struct msg_node *node;
+    int ret;
 
-	if (error_count==0){            // if true then have success
-		printk(KERN_INFO "Simple Driver: sent %d characters to the user\n", size_of_message);
-		return (size_of_message=0);  // clear the position to the start and return 0
-	}
-	else {
-		printk(KERN_INFO "Simple Driver: failed to send %d characters to the user\n", error_count);
-		return -EFAULT;              // Failed -- return a bad address message (i.e. -14)
-	}
+    if (list_empty(&msg_list)) {
+        printk(KERN_INFO "Simple Driver: no messages to read\n");
+        return 0; // nada para ler
+    }
+
+    node = list_first_entry(&msg_list, struct msg_node, list);
+
+    if (len < node->len)
+        return -EINVAL; // buffer do user pequeno demais
+
+    if (copy_to_user(buffer, node->data, node->len)) {
+        return -EFAULT;
+    }
+
+    ret = node->len;
+
+    // Remove da lista e libera
+    list_del(&node->list);
+    kfree(node->data);
+    kfree(node);
+
+    printk(KERN_INFO "Simple Driver: sent %d chars to user\n", ret);
+    return ret;
 }
 
-
-/** @brief This function is called whenever the device is being written to from user space i.e.
- *  data is sent to the device from the user. The data is copied to the message[] array in this
- *  LKM using the sprintf() function along with the length of the string.
- *  @param filep A pointer to a file object
- *  @param buffer The buffer to that contains the string to write to the device
- *  @param len The length of the array of data that is being passed in the const char buffer
- *  @param offset The offset if required
- */
 static ssize_t dev_write(struct file *filep, const char *buffer, size_t len, loff_t *offset){
-	if (len < sizeof(message)){
-		sprintf(message, "%s(%zu letters)", buffer, len);   // appending received string with its length
-		size_of_message = strlen(message);                 // store the length of the stored message
-		printk(KERN_INFO "Simple Driver: received %zu characters from the user\n", len);
-		
-		return len;
-	}else{
-		sprintf(message, "(0 letters)");
-		printk(KERN_INFO "Simple Driver: too many characters to deal with\n", len);
-		
-		return 0;
-	}
+    struct msg_node *node;
+
+    // Aloca nó
+    node = kmalloc(sizeof(*node), GFP_KERNEL);
+    if (!node) return -ENOMEM;
+
+    node->data = kmalloc(len + 1, GFP_KERNEL);
+    if (!node->data) {
+        kfree(node);
+        return -ENOMEM;
+    }
+
+    if (copy_from_user(node->data, buffer, len)) {
+        kfree(node->data);
+        kfree(node);
+        return -EFAULT;
+    }
+
+    node->data[len] = '\0';  // string terminada
+    node->len = len;
+
+    // adiciona no fim da lista
+    list_add_tail(&node->list, &msg_list);
+
+    printk(KERN_INFO "Simple Driver: received %zu chars, stored in list\n", len);
+    return len;
 }
 
 /** @brief The device release function that is called whenever the device is closed/released by
