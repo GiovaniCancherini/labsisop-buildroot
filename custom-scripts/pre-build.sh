@@ -26,7 +26,7 @@ if [ -d "$BASE_DIR" ]; then
     make -C $BASE_DIR/../modules/simple_driver_desafio/
 
     # 2.4 disk-test: compilação cruzada e inclusão do binário
-    gcc -o $BASE_DIR/../disk-test/write_hello_bin $BASE_DIR/../disk-test/write_hello.c
+    /workspaces/labsisop-buildroot/output/host/bin/i686-buildroot-linux-gnu-gcc -o $BASE_DIR/../disk-test/write_hello_bin $BASE_DIR/../disk-test/write_hello.c
     # Copia o binário para o target do Buildroot e o torna executável
     cp $BASE_DIR/../disk-test/write_hello_bin $BASE_DIR/target/usr/bin/write_hello
     chmod +x $BASE_DIR/target/usr/bin/write_hello
