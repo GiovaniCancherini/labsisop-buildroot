@@ -30,4 +30,7 @@ if [ -d "$BASE_DIR" ]; then
     # Copia o binário para o target do Buildroot e o torna executável
     cp $BASE_DIR/../disk-test/write_hello_bin $BASE_DIR/target/usr/bin/write_hello
     chmod +x $BASE_DIR/target/usr/bin/write_hello
+
+    # tp2
+    make -C $BASE_DIR/../modules/sstf-iosched-skeleton-master/
 fi
