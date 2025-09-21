@@ -3,10 +3,6 @@
   "customizations": {
     "vscode": {
       "extensions": [
-        "ms-python.python",
-        "eamodio.gitlens",
-        "ms-vscode.cpptools",
-        "danielpinto8zz6.c-cpp-compile-run",
         "mhutchie.git-graph",
         "GitHub.copilot",
         "GitHub.copilot-chat",
