@@ -1,7 +1,8 @@
 obj-m := sstf-iosched.o
 BUILDROOT_DIR := ../..
 KDIR := $(BUILDROOT_DIR)/output/build/linux-custom
-COMPILER := $(BUILDROOT_DIR)/output/host/bin/i686-buildroot-linux-uclibc-gcc
+CROSS_COMPILE := $(firstword $(wildcard $(BUILDROOT_DIR)/output/host/bin/*-gcc))
+COMPILER := $(if $(CROSS_COMPILE),$(CROSS_COMPILE),gcc)
 
 all:
 	$(MAKE) -C $(KDIR) M=$$PWD
