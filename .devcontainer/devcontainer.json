@@ -17,7 +17,8 @@
         "donjayamanne.python-extension-pack",
         "mechatroner.rainbow-csv",
         "timonwong.shellcheck",
-        "jakobhoeg.vscode-pokemon"
+        "jakobhoeg.vscode-pokemon",
+        "ms-vscode.cpptools"
       ]
     }
   }
