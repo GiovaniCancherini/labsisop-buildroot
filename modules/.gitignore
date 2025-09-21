@@ -6,3 +6,9 @@
 *.symvers
 *.order
 *.markers
+
+test_simple_driver
+test_simple_driver_atividade1
+test_simple_driver_atividade2
+test_simple_driver_desafio
+sector_read
