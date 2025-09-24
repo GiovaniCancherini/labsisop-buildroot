@@ -33,7 +33,7 @@ int main()
 	for (int i = 0; i < FORKS; i++)
 		fork();
 
-	srand(getpid());
+	srand(42 + i);
 
 	fd = open("/dev/sdb", O_RDWR);
 	if (fd < 0) {
