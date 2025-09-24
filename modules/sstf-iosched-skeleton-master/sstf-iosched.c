@@ -43,18 +43,14 @@ static int sstf_dispatch(struct request_queue *q, int force){
 	struct request *best = NULL;
 	sector_t best_pos = 0;
 	unsigned long long best_dist = 0;
-	unsigned long flags;
 	sector_t cur;
 	int found = 0;
 
-	/* protege a fila */
-	spin_lock_irqsave(q->queue_lock, flags);
+	/* OBS: add/dispatch são chamados com q->queue_lock JÁ segurado pelo core. */
 
 	/* se vazio, nada a fazer */
-	if (list_empty(&nd->queue)) {
-		spin_unlock_irqrestore(q->queue_lock, flags);
+	if (list_empty(&nd->queue))
 		return 0;
-	}
 
 	cur = nd->head_pos;
 
@@ -81,12 +77,8 @@ static int sstf_dispatch(struct request_queue *q, int force){
 		/* remove da lista e atualiza head_pos */
 		list_del_init(&best->queuelist);
 		nd->head_pos = best_pos;
-	}
 
-	spin_unlock_irqrestore(q->queue_lock, flags);
-
-	if (best) {
-		/* despacha */
+		/* despacha (com q->queue_lock ainda segurado pelo core) */
 		elv_dispatch_sort(q, best);
 		printk(KERN_INFO "[SSTF] dsp %llu\n", (unsigned long long)best_pos);
 		return 1;
@@ -99,15 +91,10 @@ static int sstf_dispatch(struct request_queue *q, int force){
 static void sstf_add_request(struct request_queue *q, struct request *rq)
 {
 	struct sstf_data *nd = q->elevator->elevator_data;
-	unsigned long flags;
-	sector_t pos;
+	sector_t pos = blk_rq_pos(rq);
 
-	/* obter posição para log */
-	pos = blk_rq_pos(rq);
-
-	spin_lock_irqsave(q->queue_lock, flags);
+	/* OBS: chamado com q->queue_lock JÁ segurado pelo core. */
 	list_add_tail(&rq->queuelist, &nd->queue);
-	spin_unlock_irqrestore(q->queue_lock, flags);
 
 	printk(KERN_INFO "[SSTF] add %llu\n", (unsigned long long)pos);
 }
@@ -142,15 +129,10 @@ static void sstf_exit_queue(struct elevator_queue *e)
 {
 	struct sstf_data *nd = e->elevator_data;
 
-	/* Caso haja requisições restantes (não esperado), apenas loga e limpa */
-	if (!list_empty(&nd->queue)) {
-		struct request *rq, *tmp;
-		list_for_each_entry_safe(rq, tmp, &nd->queue, queuelist) {
-			printk(KERN_WARNING "[SSTF] leftover req at pos %llu\n",
-			       (unsigned long long)blk_rq_pos(rq));
-			list_del_init(&rq->queuelist);
-		}
-	}
+	/* Em geral a troca ocorre com fila vazia.
+	 * Não remova requests manualmente; apenas avise para debug. */
+	if (!list_empty(&nd->queue))
+		printk(KERN_WARNING "[SSTF] exit: leftover requests in queue!\n");
 
 	kfree(nd);
 }

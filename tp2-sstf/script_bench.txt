@@ -1,0 +1,98 @@
+cat > /root/collect_bench.sh <<'SH'
+#!/bin/sh
+set -eu
+
+# === Configuração básica ===
+DEV=sdb                       # preferido
+[ -e "/sys/block/$DEV" ] || DEV=sda
+SECTOR_READ=${SECTOR_READ:-sector_read}
+LIST="noop deadline cfq sstf" # ordem fixa do enunciado
+TS=$(date -Iseconds | tr ':+' '__')
+OUTDIR="/root/bench_runs/$TS"
+mkdir -p "$OUTDIR"
+
+echo "== Bench sector_read (simple extract) ==" | tee "$OUTDIR/bench_sector_read_results.txt"
+echo "device=/dev/$DEV" | tee -a "$OUTDIR/bench_sector_read_results.txt"
+echo "started_at=$TS"   | tee -a "$OUTDIR/bench_sector_read_results.txt"
+echo ""                | tee -a "$OUTDIR/bench_sector_read_results.txt"
+
+SCHED_FILE="/sys/block/$DEV/queue/scheduler"
+
+# tenta carregar sstf se listado e ainda não disponível
+ensure_sstf() {
+  if tr -d '[]' < "$SCHED_FILE" | grep -qw sstf; then return 0; fi
+  # tenta insmod a partir do caminho padrão
+  KO="/lib/modules/$(uname -r)/extra/sstf-iosched.ko"
+  [ -e "$KO" ] && insmod "$KO" 2>/dev/null || true
+}
+
+# tunáveis (se existirem)
+tune_queue() {
+  for q in nomerges max_sectors_kb read_ahead_kb; do
+    [ -e "/sys/block/$DEV/queue/$q" ] || continue
+  done
+  echo 2 2>/dev/null > "/sys/block/$DEV/queue/nomerges"      || true
+  echo 4 2>/dev/null > "/sys/block/$DEV/queue/max_sectors_kb"|| true
+  echo 0 2>/dev/null > "/sys/block/$DEV/queue/read_ahead_kb" || true
+}
+
+for S in $LIST; do
+  # sstf pode precisar ser registrado antes de checar disponibilidade
+  [ "$S" = "sstf" ] && ensure_sstf
+
+  AVAIL="$(tr -d '[]' < "$SCHED_FILE" 2>/dev/null || echo "")"
+  echo "$AVAIL" | grep -qw "$S" || {
+    echo "[skip] $S não disponível (linha: $(cat "$SCHED_FILE" 2>/dev/null || echo N/A))" | tee -a "$OUTDIR/bench_sector_read_results.txt"
+    echo "" | tee -a "$OUTDIR/bench_sector_read_results.txt"
+    continue
+  }
+
+  echo "---- scheduler=$S ----" | tee -a "$OUTDIR/bench_sector_read_results.txt"
+
+  # troca scheduler
+  echo "$S" > "$SCHED_FILE" 2>/dev/null || {
+    echo "[erro] não consegui setar $S" | tee -a "$OUTDIR/bench_sector_read_results.txt"
+    echo "" | tee -a "$OUTDIR/bench_sector_read_results.txt"
+    continue
+  }
+
+  ACTIVE="$(cat "$SCHED_FILE")"
+  echo "active=$ACTIVE" | tee -a "$OUTDIR/bench_sector_read_results.txt"
+
+  # limpa dmesg para capturar só desta execução
+  dmesg -c >/dev/null 2>&1 || true
+
+  # limpa caches e aplica tunáveis
+  echo 3 > /proc/sys/vm/drop_caches || true
+  tune_queue
+
+  B="$OUTDIR/${S}_before.stat"
+  A="$OUTDIR/${S}_after.stat"
+  D="$OUTDIR/${S}_dmesg.log"
+
+  cat "/sys/block/$DEV/stat" > "$B"
+
+  # mede tempo POSIX (time -p) do sector_read
+  T=$({ time -p "$SECTOR_READ" >/dev/null; } 2>&1 | awk '/^real/ {print $2; exit}')
+
+  cat "/sys/block/$DEV/stat" > "$A"
+  dmesg > "$D" 2>/dev/null || true
+
+  # registra no TXT “principal”
+  {
+    echo "before=$(cat "$B")"
+    echo "after=$(cat "$A")"
+    echo "time_real_s=$T"
+    echo "before_file=$B"
+    echo "after_file=$A"
+    echo "dmesg_file=$D"
+    echo ""
+  } >> "$OUTDIR/bench_sector_read_results.txt"
+done
+
+echo "finished_at=$(date -Iseconds)" | tee -a "$OUTDIR/bench_sector_read_results.txt"
+echo "Saída em: $OUTDIR"
+SH
+
+chmod +x /root/collect_bench.sh
+echo "Pronto. Rode:  sh /root/collect_bench.sh"
