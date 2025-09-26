@@ -4,6 +4,13 @@ Aqui estão os comandos mais úteis para liberar espaço de armazenamento no Cod
 
 -----
 
+### Mais Simples e Rápido
+
+Limpa o cache de construção (Build Cache) do Docker
+```bash
+docker builder prune
+```
+
 ### 1\. Limpeza Geral de Caches
 
 Esses comandos são seguros para rodar e visam liberar espaço de caches de sistemas e gerenciadores de pacotes.
