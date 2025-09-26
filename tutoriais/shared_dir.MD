@@ -145,3 +145,11 @@ ls /shared
 # Tente copiar um arquivo de volta (o que estava falhando antes)
 touch /shared/teste_escrita.txt
 ```
+
+---
+
+## Copiar os Benchmarks com a pasta SHARED
+
+```bash
+cp -r bench_runs/ /shared
+```
