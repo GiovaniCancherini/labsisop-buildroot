@@ -13,7 +13,7 @@ Você precisa garantir que o kernel e o *root filesystem* do Buildroot tenham os
 Certifique-se de que o utilitário `mount` (que é fornecido pelo BusyBox no Buildroot) está configurado para suportar 9p.
 
 1.  Execute: `make menuconfig`
-2.  Navegue para: **Target packages** $\\rightarrow$ **System tools**
+2.  Navegue para: **Target packages** ->$ **System tools**
 3.  Marque: **`[*] busybox`**
 4.  Certifique-se de que a opção `mount` dentro da configuração do BusyBox está ativada (geralmente é o padrão).
 
@@ -25,18 +25,22 @@ O kernel deve ter suporte para o próprio sistema de arquivos 9p e, crucialmente
 
 2.  Navegue para: **File systems**
 
-3.  Navegue para: **$\\rightarrow$ 9p Network File System**
+3.  Navegue para: **->$ 9p Network File System**
 
 4.  Marque as seguintes opções:
 
-      * **`[M]`** ou **`[*]`** **$\\rightarrow$ 9p Protocol support**
-      * **`[M]`** ou **`[*]`** **$\\rightarrow$ 9P2000.L protocol support** (Para estabilidade extra)
+      * `[*]` **Plan 9 Resource Sharing Support (9P2000)**
+      * `[*]` **9P POSIX Access Control Lists**
+      * `[*]` **9P Security Labels**
 
-5.  Navegue de volta para o menu **File systems** e depois para **$\\rightarrow$ Network File Systems**
+5.  Navegue de volta para o menu **File systems** e depois para **->$ Network File Systems**
 
-6.  Navegue para: **$\\rightarrow$ Virtio devices**
+6.  Navegue para: **->$ Virtio devices**
 
-7.  Marque: **`[M]`** ou **`[*]`** **$\\rightarrow$ Virtio 9p port** (O driver de transporte essencial)
+7.  Marque: 
+
+    * `[*]` **PCI driver for virtio devices** (Requisito essencial para o canal)
+    * `[*]` **9P Virtio transport** (É o driver que o `trans=virtio` usa. Se não aparecer, verifique se os drivers Virtio básicos estão ativos).
 
     *Recomendação: Escolha `[*]` (compilar no kernel) em vez de `[M]` (módulo) para garantir que o driver esteja sempre disponível.*
 
