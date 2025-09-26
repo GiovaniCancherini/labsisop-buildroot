@@ -12,4 +12,6 @@ qemu-system-i386 \
   --hdb sdb.bin \
   --nographic \
   --append "console=ttyS0 root=/dev/sda" \
-  -virtfs local,path=$HOST_SHARE,mount_tag=hostshare,security_model=passthrough,id=hostshare
+  -fsdev local,id=myid,path=$HOST_SHARE,security_model=none \
+  -device virtio-9p-pci,fsdev=myid,mount_tag=hostshare \
+  -net user,hostfwd=tcp::2223-:22 -net nic

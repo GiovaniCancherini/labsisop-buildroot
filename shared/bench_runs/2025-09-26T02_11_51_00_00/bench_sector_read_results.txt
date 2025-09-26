@@ -1,0 +1,41 @@
+== Bench sector_read (simple extract) ==
+device=/dev/sdb
+started_at=2025-09-26T02_11_51_00_00
+
+---- scheduler=noop ----
+active=[noop] deadline cfq 
+before=       1        0        8        0        0        0        0        0        0        0        0
+after=      41        0      328       80        0        0        0        0        0       80       80
+time_real_s=0.34
+before_file=/root/bench_runs/2025-09-26T02_11_51_00_00/noop_before.stat
+after_file=/root/bench_runs/2025-09-26T02_11_51_00_00/noop_after.stat
+dmesg_file=/root/bench_runs/2025-09-26T02_11_51_00_00/noop_dmesg.log
+
+---- scheduler=deadline ----
+active=noop [deadline] cfq 
+before=      41        0      328       80        0        0        0        0        0       80       80
+after=     121        0      968      104        0        0        0        0        0      104      104
+time_real_s=0.23
+before_file=/root/bench_runs/2025-09-26T02_11_51_00_00/deadline_before.stat
+after_file=/root/bench_runs/2025-09-26T02_11_51_00_00/deadline_after.stat
+dmesg_file=/root/bench_runs/2025-09-26T02_11_51_00_00/deadline_dmesg.log
+
+---- scheduler=cfq ----
+active=noop deadline [cfq] 
+before=     121        0      968      104        0        0        0        0        0      104      104
+after=     149        0     1192      240        0        0        0        0        1      248      248
+time_real_s=0.20
+before_file=/root/bench_runs/2025-09-26T02_11_51_00_00/cfq_before.stat
+after_file=/root/bench_runs/2025-09-26T02_11_51_00_00/cfq_after.stat
+dmesg_file=/root/bench_runs/2025-09-26T02_11_51_00_00/cfq_dmesg.log
+
+---- scheduler=sstf ----
+active=noop deadline cfq [sstf] 
+before=     151        0     1208      252        0        0        0        0        0      252      252
+after=     201        0     1608      300        0        0        0        0        0      300      300
+time_real_s=0.32
+before_file=/root/bench_runs/2025-09-26T02_11_51_00_00/sstf_before.stat
+after_file=/root/bench_runs/2025-09-26T02_11_51_00_00/sstf_after.stat
+dmesg_file=/root/bench_runs/2025-09-26T02_11_51_00_00/sstf_dmesg.log
+
+finished_at=2025-09-26T02:11:55+00:00
