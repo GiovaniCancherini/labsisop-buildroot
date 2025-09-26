@@ -12,7 +12,4 @@ qemu-system-i386 \
   --hdb sdb.bin \
   --nographic \
   --append "console=ttyS0 root=/dev/sda" \
-  \
-  # SINTAXE CORRETA:
-  -fsdev local,id=myid,path=$HOST_SHARE,security_model=passthrough \
-  -device virtio-9p-pci,fsdev=myid,mount_tag=hostshare 
+  -virtfs local,path=$HOST_SHARE,mount_tag=hostshare,security_model=passthrough,id=hostshare
