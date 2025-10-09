@@ -78,3 +78,10 @@ rm -rf nome_da_da_pasta
 ### Dica Adicional: Automatize a Limpeza
 
 Para evitar que seu Codespace lote novamente, considere adicionar comandos de limpeza ao seu script de inicialização ou ao `postCreateCommand` no seu arquivo `.devcontainer.json`.
+
+
+
+### Garbage Collector do GIT
+```bash
+git gc --prune=now
+```
