@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Tutorial 3.1: Depurando o Kernel com Ftrace - parte 1 (v1.1)</title>
+<meta name="generator" content="http://txt2tags.org">
+<link rel="stylesheet" href="tutorial.css">
+<style>
+body{background-color:#fff;color:#000;}
+hr{background-color:#000;border:0;color:#000;}
+hr.heavy{height:5px;}
+hr.light{height:1px;}
+img{border:0;display:block;}
+img.right{margin:0 0 0 auto;}
+img.center{border:0;margin:0 auto;}
+table th,table td{padding:4px;}
+.center,header{text-align:center;}
+table.center {margin-left:auto; margin-right:auto;}
+.right{text-align:right;}
+.left{text-align:left;}
+.tableborder,.tableborder td,.tableborder th{border:1px solid #000;}
+.underline{text-decoration:underline;}
+</style>
+</head>
+<body>
+<header>
+<hgroup>
+<h1>Tutorial 3.1: Depurando o Kernel com Ftrace - parte 1 (v1.1)</h1>
+</hgroup>
+</header>
+<article>
+
+<nav>
+<div class="body" id="body">
+
+  <ol>
+  <li><a href="#toc1">Objetivo</a>
+  </li>
+  <li><a href="#toc2">Habilitando Ftrace no kernel</a>
+  </li>
+  <li><a href="#toc3">Function Tracing</a>
+  </li>
+  <li><a href="#toc4">Usando trace_printk()</a>
+  </li>
+  <li><a href="#toc5">Iniciando e parando o trace</a>
+  </li>
+  <li><a href="#toc6">Atividade</a>
+  </li>
+  </ol>
+
+</div>
+</nav>
+<div class="body" id="body">
+
+<section id="toc1">
+<h1>1. Objetivo</h1>
+
+<p>
+Existem muitas ferramentas para depuração e profiling do kernel Linux: Ftrace, perf_events, eBPF, SystemTap,
+LTTng, Ktap e dtrace4linux. Veja o artigo de <a href="http://www.brendangregg.com/blog/2015-07-08/choosing-a-linux-tracer.html">Bredan Greggs</a>
+sobre estas ferramentas. Para estudo, iremos abordar o Ftrace, por ser flexível, de fácil utilização e por estar disponível na
+maior parte das arquiteturas.
+</p>
+<p>
+Ftrace é uma ferramenta de depuração implementada diretamente no kernel do Linux. Muitas
+distribuições já trazem diversas configurações do Ftrace habilitadas no kernel. Um dos benefícios
+do Ftrace é permitir "enxergar" o que esta acontecendo dentro do kernel, sendo possível encontrar <em>bugs</em>
+ou determinar gargalos de desempenho de maneira mais precisa. Ftrace tem a habilidade de
+mostrar eventos que antecedem problemas, ajudando o desenvolvedor a determinar a solução correta.
+Este tutorial esta dividido em duas partes e irá mostrar vários métodos de usar o Ftrace para
+depurar o kernel Linux. Esta primeira parte irá descrever como configurar o Ftrace, usar rastreador
+de funções (function tracer), colocar mensagens no buffer do Ftrace de dentro do kernel, e diversos meios
+de pará-lo quando um problema é detectado.
+</p>
+<p>
+Ftrace foi derivado de duas outras ferramentas. Uma foi o <em>latency tracer</em> criado por Ingo Molnar e usado para depuraçao de
+kernels de tempo-real. A outra é a ferramenta <em>logdev</em> usado para depuração do kernel Linux. Este tutorial
+irá mostrar, principalmente, características que vieram do <em>logdev</em>, mas também irá mostrar funções
+que são originárias do <em>latency tracer</em>.
+</p>
+
+</section>
+<section id="toc2">
+<h1>2. Habilitando Ftrace no kernel</h1>
+
+<p>
+A API para interfacear com o Ftrace esta localizada no subsistema Debugfs, tipicamente montando em <em>/sys/kernel/debug</em>.
+Assim, se o Ftrace estiver configurado no kernel, o seguinte diretório deve estar presente: <em>/sys/kernel/debug/tracing</em>.
+</p>
+<p>
+Se você estiver acessando os sources do kernel linux localmente, não esqueça de instruir o Buildroot a fazer isso antes de iniciar a configuração:
+</p>
+
+<pre>
+$ export LINUX_OVERRIDE_SRCDIR=~/linuxdistro/linux-4.13.9/
+</pre>
+
+<p>
+Para habilitar a compilação do Ftrace, vá até o menuconfig do kernel e marque as opções abaixo:
+</p>
+
+<pre>
+$ make linux-menuconfig
+
+Kernel hacking  ---&gt;
+	[*] Tracers  ---&gt;
+		[*]   Kernel Function Tracer
+		[*]  Kernel Function Graph Tracer (NEW)
+</pre>
+
+<p>
+Agora, recompile a sua distribuição e execute o seu emulador. O pseudo sistema de arquivos Debugfs deve ser montando em sua distribuição para que o Ftrace possa ser usado. Use o comando abaixo para fazer isso:
+</p>
+
+<pre>
+$ mount -t tracefs none /sys/kernel/tracing
+</pre>
+
+<p>
+Uma alternativa seria incluir a montagem do sistema de arquivos Debugfs no arquivo <em>/etc/fstab</em>. Para isso será necessário editar o seu script <em>custom-scripts/pre-built.sh</em> antes de preparar a distribuição. O comando a ser incluído no arquivo <em>fstab</em> é:
+</p>
+
+<pre>
+tracefs /sys/kernel/tracing tracefs 0 0
+</pre>
+
+<p>
+Verifique se o Ftrace foi corretamente inicializado observando o contéudo do diretório <em>/sys/kernel/tracing</em>:
+</p>
+
+<pre>
+$ ls /sys/kernel/tracing/
+README                      set_event
+available_events            set_event_pid
+available_filter_functions  set_ftrace_filter
+available_tracers           set_ftrace_notrace
+buffer_size_kb              set_ftrace_pid
+buffer_total_size_kb        set_graph_function
+current_tracer              set_graph_notrace
+dyn_ftrace_total_info       trace
+enabled_functions           trace_clock
+events                      trace_marker
+free_buffer                 trace_marker_raw
+instances                   trace_options
+max_graph_depth             trace_pipe
+options                     tracing_cpumask
+per_cpu                     tracing_on
+printk_formats              tracing_thresh
+saved_cmdlines              uprobe_events
+saved_cmdlines_size         uprobe_profile
+</pre>
+
+</section>
+<section id="toc3">
+<h1>3. Function Tracing</h1>
+
+<p>
+Esta sessão considera que o diretório corrente é <em>/sys/kernel/tracing</em>.
+</p>
+<p>
+<em>Function tracing</em> é um recurso que permite o rastreamento das funções que estão sendo chamadas no sistema. Para ver
+quais tipos de tracers estão disponíveis, leia o arquivo <em>available_tracers</em>.
+</p>
+
+<pre>
+$ cat available_tracers
+function_graph function nop
+</pre>
+
+<p>
+Para habilitar um tracer, escreva o seu nome no arquivo <em>current_tracer</em>, por exemplo:
+</p>
+
+<pre>
+echo function &gt; current_tracer
+</pre>
+
+<p>
+Para ver a lista de funções que estão sendo invocadas leia o arquivo <em>trace</em>.
+</p>
+
+<pre>
+# cat trace | head -50
+# tracer: function
+#
+#                              _-----=&gt; irqs-off
+#                             / _----=&gt; need-resched
+#                            | / _---=&gt; hardirq/softirq
+#                            || / _--=&gt; preempt-depth
+#                            ||| /     delay
+#           TASK-PID   CPU#  ||||    TIMESTAMP  FUNCTION
+#              | |       |   ||||       |         |
+          &lt;idle&gt;-0     [000] dN..   602.288394: __update_load_avg_cfs_rq.isra.3 &lt;-set_next_entity
+     kworker/0:1-21    [000] d...   602.288403: finish_task_switch &lt;-__schedule
+     kworker/0:1-21    [000] ....   602.288407: _raw_spin_lock_irq &lt;-worker_thread
+     kworker/0:1-21    [000] d...   602.288409: process_one_work &lt;-worker_thread
+     kworker/0:1-21    [000] d...   602.288412: set_work_pool_and_clear_pending &lt;-process_one_work
+     kworker/0:1-21    [000] ....   602.288415: fb_flashcursor &lt;-process_one_work
+     kworker/0:1-21    [000] ....   602.288417: console_trylock &lt;-fb_flashcursor
+     kworker/0:1-21    [000] ....   602.288419: __down_trylock_console_sem.isra.5 &lt;-console_trylock
+     kworker/0:1-21    [000] d...   602.288421: __printk_safe_enter &lt;-__down_trylock_console_sem.isra.5
+     kworker/0:1-21    [000] d...   602.288424: down_trylock &lt;-__down_trylock_console_sem.isra.5
+     kworker/0:1-21    [000] d...   602.288426: _raw_spin_lock_irqsave &lt;-down_trylock
+...
+</pre>
+
+<p>
+O cabeçalho explica o formato da saída, que é detalhado abaixo:
+</p>
+
+<ul>
+<li><em>TASK-PID</em>: é o nome do processo e seu PID.
+</li>
+<li><em>CPU</em>: é número do processador que executou a chamada.
+</li>
+<li><em>TIMESTAMP</em>: é o tempo desde que o sistema foi inicializado.
+</li>
+<li><em>FUNCTION</em>: é o nome da função sendo executada com a função chamadora depois do símbolo "&lt;-".
+</li>
+<li><em>irqs-off</em>: 'd' significa que as interrupções estão desabilitadas, '.' caso contrário.
+</li>
+<li><em>need-resched</em>: Indica o status de escalonamento:
+ <ul>
+ <li>'N': TIF_NEED_RESCHED e PREEMPT_NEED_RESCHED estão setados;
+ </li>
+ <li>'n': somente TIF_NEED_RESCHED está setado;
+ </li>
+ <li>'p': somente PREEMPT_NEED_RESCHED esta setado;
+ -	'.' caso nenhum estaja setado.
+ </li>
+ </ul>
+</li>
+<li><em>hardirq/softirq</em>: Mostra se esta em contexto de interrupção:
+ <ul>
+ <li>'Z' - NMI ocorreu durante uma hardirq;
+ </li>
+ <li>'z' - NMI em execução;
+ </li>
+ <li>'H' - hardirq ocorreu durante a softirq;
+ </li>
+ <li>'h' - hardirq esta em execução;
+ </li>
+ <li>'s' - softirq em execução;
+ </li>
+ <li>'.' - contexto normal de execução.
+ </li>
+ </ul>
+</li>
+</ul>
+
+<p>
+Nota: TIF_NEED_RESCHED diz que o escalonador de tarefas precisa ser chamado logo que os caminhos de execução de interrupções
+e usuário retornarem.
+</p>
+<p>
+Outra forma de se observar as funções executadas é através do <em>function graph tracer</em>, ele mostra a entrada
+e a saída de uma função com todas as chamadas intermediárias. Assim, é possível obter um gráfico de chamadas aninhadas.
+Além disso, ele calcula o tempo gasto em cada função. Para habilitar o <em>graph tracer</em> faça:
+</p>
+
+<pre>
+$ echo function_graph &gt; current_tracer
+</pre>
+
+<p>
+Agora, observer o trace.
+</p>
+
+<pre>
+$ cat trace
+# tracer: function_graph
+#
+# CPU  DURATION                  FUNCTION CALLS
+# |     |   |                     |   |   |   |
+ 0)   0.755 us    |                            } /* _raw_spin_unlock_irqrestore */
+ 0) ! 374.793 us  |                          } /* serial8250_handle_irq.part.14 */
+ 0) ! 388.473 us  |                        } /* serial8250_default_handle_irq */
+ 0)               |                        serial8250_default_handle_irq() {
+ 0)   0.794 us    |                          io_serial_in();
+ 0)   5.945 us    |                        }
+ 0) ! 411.459 us  |                      } /* serial8250_interrupt */
+ 0) ! 417.901 us  |                    } /* __handle_irq_event_percpu */
+ 0)   2.251 us    |                    add_interrupt_randomness();
+ 0)   1.468 us    |                    note_interrupt();
+ 0) ! 437.025 us  |                  } /* handle_irq_event_percpu */
+ 0)   0.697 us    |                  _raw_spin_lock();
+ 0) ! 447.524 us  |                } /* handle_irq_event */
+ 0) ! 490.381 us  |              } /* handle_edge_irq */
+ 0) ! 496.718 us  |            } /* handle_irq */
+ 0)               |            irq_exit() {
+ 0)               |              rcu_irq_exit() {
+ 0)   1.209 us    |                rcu_eqs_enter_common.constprop.57();
+ 0)   6.731 us    |              }
+ 0) + 12.420 us   |            }
+ 0) ! 563.455 us  |          } /* do_IRQ */
+ 0)   &lt;========== |
+ 0) # 2176.241 us |        } /* default_idle */
+ 0) # 2181.487 us |      } /* arch_cpu_idle */
+ 0) # 2186.942 us |    } /* default_idle_call */
+ 0)               |    rcu_idle_exit() {
+ 0)   0.754 us    |      rcu_dynticks_eqs_exit();
+ 0)   6.773 us    |    }
+ 0)   0.795 us    |    arch_cpu_idle_exit();
+ 0)   1.024 us    |    sched_ttwu_pending();
+ 0)               |    schedule_idle() {
+ 0)   1.260 us    |      rcu_note_context_switch();
+ 0)   0.647 us    |      _raw_spin_lock();
+ 0)               |      pick_next_task_fair() {
+ 0)   1.030 us    |        put_prev_task_idle();
+ 0)   1.053 us    |        clear_buddies();
+ 0)               |        set_next_entity() {
+ 0)   1.025 us    |          __update_load_avg_se.isra.2();
+ 0)   0.866 us    |          __update_load_avg_cfs_rq.isra.3();
+ 0) + 13.780 us   |        }
+ 0) + 30.501 us   |      }
+ ------------------------------------------
+ 0)    &lt;idle&gt;-0    =&gt;   kworker-5
+ ------------------------------------------
+
+ 0)   1.694 us    |    finish_task_switch();
+ 0) @ 431432.8 us |  } /* schedule */
+ 0)   1.102 us    |  _raw_spin_lock_irq();
+ 0)               |  process_one_work() {
+ 0)   0.975 us    |    set_work_pool_and_clear_pending();
+ 0)               |    flush_to_ldisc() {
+</pre>
+
+<p>
+Na saída, é indicado o início e o fim de cada função com chaves, estilo C ("{" e "}"). Funções finais, as quais
+não chamam outras funções terminam com ";". A coluna <em>DURATION</em> mostra o tempo gasto na função correspondente.
+Quanto o tempo é superior a 10us um sinal de "+" é adicionado a coluna, se o tempo ultrapassar 100us é inserido um sinal
+de "!" e se o tempo for superior a 1ms é inserido um sinal de "#". Este é um ótimo recurso para se descobrir gargalos de desempenho, ou seja, funções mal otimizadas (ou às vezes bloqueadas em função de sincronização) que ocupam muito tempo de execução.
+</p>
+
+</section>
+<section id="toc4">
+<h1>4. Usando trace_printk()</h1>
+
+<p>
+A função printk() é amplamente usada para debugging, mas ela tem alguns problemas. Por exemplo,
+para depurar funções que tem um grande volume de execuções, como interrupções do timer do sistema, além de
+poluir a saída ela adiciona um grande atraso de tempo. Em alguns casos, o tempo de execução de printk()
+pode ficar na casa de milisegundos. Além disso, é bastante comum que a adição de printk() faça
+um <em>bug</em> "desaparecer", devido ao <em>overhead</em> acrescentado.
+</p>
+<p>
+Ftrace introduz um nova forma de printk(), chamado trace_printk(). Ele pode ser usado exatamente como o printk() e
+em qualquer contexto de execução (interrupções, NMI ou escalonador). A diferença é que no trace_printk() a saída não
+vai diretamente para o console, mas para um buffer em anel em memória, podendo ser lido através do arquivo <em>trace</em>.
+Ao escrever no buffer em memória, o trace_printk() consume apenas alguns microsegundos de tempo de processador. Por exemplo,
+é possível adicionar a seguinte linha no kernel ou em um módulo:
+</p>
+
+<pre>
+    trace_printk("read foo %d out of bar %p\n", bar-&gt;foo, bar);
+</pre>
+
+<p>
+Então, no arquivo de trace, aparecerá:
+</p>
+
+<pre>
+    [tracing]# cat trace
+    # tracer: nop
+    #
+    #           TASK-PID    CPU#    TIMESTAMP  FUNCTION
+    #              | |       |          |         |
+               &lt;...&gt;-10690 [003] 17279.332920: : read foo 10 out of bar ffff880013a5bef8
+</pre>
+
+<p>
+As mensagens escritas através do trace_printk() apareceram em qualquer opção de tracer (<em>function</em> ou <em>graph tracers</em>). Exemplo:
+</p>
+
+<pre>
+    [tracing]# echo function_graph &gt; current_tracer
+    [tracing]# insmod ~/modules/foo.ko
+    [tracing]# cat trace
+    # tracer: function_graph
+    #
+    # CPU  DURATION                  FUNCTION CALLS
+    # |     |   |                     |   |   |   |
+     3) + 16.283 us   |      }
+     3) + 17.364 us   |    }
+     3)               |    do_one_initcall() {
+     3)               |      /* read foo 10 out of bar ffff88001191bef8 */
+     3)   4.221 us    |    }
+     3)               |    __wake_up() {
+     3)   0.633 us    |      _spin_lock_irqsave();
+     3)   0.538 us    |      __wake_up_common();
+     3)   0.563 us    |      _spin_unlock_irqrestore();
+</pre>
+
+<p>
+Repare que a saída do trace_printk() aparece como um comentário padrão da linguagem C.
+</p>
+
+</section>
+<section id="toc5">
+<h1>5. Iniciando e parando o trace</h1>
+
+<p>
+É possível iniciar e parar o trace quando desejado. Por exemplo, você pode querer iniciar o tracer
+somente quando for executar algum teste específico. O arquivo <em>tracing_on</em> é usado para isso. Por exemplo,
+para parar o tracer, faça:
+</p>
+
+<pre>
+$ echo 0 &gt; tracing_on
+</pre>
+
+<p>
+Para reiniciar o tracer:
+</p>
+
+<pre>
+$ echo 1 &gt; tracing_on
+</pre>
+
+<p>
+Uma forma comum de utilização do tracer é:
+</p>
+
+<pre>
+$ echo 0 &gt; tracing_on
+$ echo function_graph &gt; current_tracer
+$ echo 1 &gt; tracing_on; run_test; echo 0 &gt; tracing_on
+</pre>
+
+<p>
+A primeira linha desabilita o tracer, depois escolhe-se o tipo de tracer. Por fim, o tracer é habilitado, o teste é executado, e tracer interrompidado novamente.
+Agora pode-se analizar a arquivo <em>trace</em>.
+</p>
+<p>
+Este tutorial foi baseado no artigo de <a href="https://lwn.net/Articles/365835/">Steven Rostedt</a>.
+</p>
+
+</section>
+<section id="toc6">
+<h1>6. Atividade</h1>
+
+<p>
+Modifique o módulo Simple Driver apresentado no tutorial 2.3, substituindo as chamadas à <em>printk()</em> por <em>trace_printk()</em>. Após, utilize o tracer para depurar o módulo.
+</p>
+</section>
+</div>
+
+<!-- html code generated by txt2tags 3.4 (http://txt2tags.org) -->
+<!-- cmdline: txt2tags 1.1 - buildroot.txt 1.2 - qemu-network.txt 1.3 - iperf.txt 2.1 - kernel_tutorial.txt 2.2 - system_call.txt 2.3 - driver_hello_world.txt 2.4 - iosched.txt 3.1 - ftrace.txt 3.2 - ftrace2.txt 3.3 - trace-cmd_kernelshark.txt 3.4 - sched_low_idle_not_used.txt 4.1 - memory_tools.txt 4.2 - process_segments.txt -->
+</article></body></html>
