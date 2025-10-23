@@ -1,0 +1,22 @@
+#!/bin/sh
+#
+# S70mount-tracefs   Mount tracefs at boot
+#
+
+case "$1" in
+  start)
+    # cria o ponto de montagem se não existir
+    [ -d /sys/kernel/tracing ] || mkdir -p /sys/kernel/tracing
+    # tenta montar tracefs (silencia erros)
+    mount -t tracefs none /sys/kernel/tracing 2>/dev/null || true
+    ;;
+  stop)
+    umount /sys/kernel/tracing 2>/dev/null || true
+    ;;
+  *)
+    echo "Usage: $0 {start|stop}"
+    exit 1
+    ;;
+esac
+
+exit 0

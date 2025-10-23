@@ -33,4 +33,9 @@ if [ -d "$BASE_DIR" ]; then
 
     # tp2
     make -C $BASE_DIR/../modules/sstf-iosched-skeleton-master/
+
+    # mount tracefs on boot (ftrace)
+    cp $BASE_DIR/../custom-scripts/S70mount-tracefs-config $BASE_DIR/target/etc/init.d/
+    chmod +x $BASE_DIR/target/etc/init.d/S70mount-tracefs-config
+
 fi
